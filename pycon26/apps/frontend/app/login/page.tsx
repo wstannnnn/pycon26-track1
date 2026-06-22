@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { authTitle, compactIntro, eyebrow, formInput, formLabel, primaryButton } from "../styles";
+import { setAuthCookie } from "@/lib/auth";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -35,6 +36,7 @@ export default function LoginPage() {
         throw new Error("Invalid email or password.");
       }
 
+      setAuthCookie(formData.get("remember") === "on");
       router.push("/dashboard");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to log in.");
