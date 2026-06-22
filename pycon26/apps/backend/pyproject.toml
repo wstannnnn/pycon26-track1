@@ -1,0 +1,30 @@
+[project]
+name = "job-skills-backend"
+version = "0.1.0"
+description = "FastAPI backend for Job and Skills Track."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.20.0",
+    "fastapi[standard]>=0.115.0",
+    "httpx>=0.28.0",
+    "tortoise-orm>=0.21.0",
+    "pydantic-settings>=2.6.0",
+    "chromadb>=1.5.9",
+    "openpyxl>=3.1.5",
+    "pypdf>=6.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.8.0"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
