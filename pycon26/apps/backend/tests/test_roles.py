@@ -32,6 +32,20 @@ async def override_vector_db_client():
     yield FakeVectorDbClient()
 
 
+class MissingRoleVectorDbClient:
+    def find_role_records(self, role_query: str, limit: int = 5) -> list[VectorSearchHit]:
+        assert role_query == "asd"
+        assert limit == 12
+        return []
+
+    def search_text(self, text: str, limit: int = 5) -> list[VectorSearchHit]:
+        raise AssertionError("pathway generation should not fall back to broad vector search")
+
+
+async def override_missing_role_vector_db_client():
+    yield MissingRoleVectorDbClient()
+
+
 def test_create_career_pathway_from_chromadb_evidence() -> None:
     app.dependency_overrides[get_vector_db_client] = override_vector_db_client
     with TestClient(app) as client:
@@ -68,3 +82,32 @@ def test_create_career_pathway_requires_current_role_and_target_interest() -> No
         )
 
     assert response.status_code == 422
+
+
+def test_create_career_pathway_rejects_numeric_target_interest() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/roles/pathway",
+            json={
+                "current_role": "Customer Support Specialist",
+                "target_interest": "123",
+            },
+        )
+
+    assert response.status_code == 422
+
+
+def test_create_career_pathway_returns_404_when_target_role_is_not_indexed() -> None:
+    app.dependency_overrides[get_vector_db_client] = override_missing_role_vector_db_client
+    with TestClient(app) as client:
+        response = client.post(
+            "/roles/pathway",
+            json={
+                "current_role": "Customer Support Specialist",
+                "target_interest": "asd",
+            },
+        )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No indexed ChromaDB role evidence found for this pathway."

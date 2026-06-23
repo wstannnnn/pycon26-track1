@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     vector_db_path: str = "./chroma"
     vector_db_collection: str = "job_skills"
     vector_db_unique_skills_collection: str = "unique_skills"
+    vector_db_hnsw_space: str = "cosine"
     vector_db_auto_index: bool = True
     skills_data_dir: str = "../../data"
     local_llm_url: str = "http://localhost:8080"

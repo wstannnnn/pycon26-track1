@@ -7,6 +7,7 @@ from app.clients.local_llm import (
     LocalLlmClient,
     build_recommendation_prompt,
     compress_evidence,
+    parse_json_object,
     recommendation_from_json,
 )
 from app.schemas.vectors import VectorSearchHit
@@ -152,6 +153,23 @@ def test_recommendation_from_json_timeboxes_vague_actions() -> None:
     assert recommendation.actions_today == [
         "Spend 30 minutes today to practice SQL joins and save one note or artifact."
     ]
+
+
+def test_parse_json_object_repairs_trailing_commas() -> None:
+    payload = parse_json_object(
+        """
+        ```json
+        {
+          "next_roles": ["Data Analyst",],
+          "priority_skills": ["SQL",],
+          "actions_today": ["Build one query.",],
+          "explanation": "ok",
+        }
+        ```
+        """
+    )
+
+    assert payload["next_roles"] == ["Data Analyst"]
 
 
 def test_compress_evidence_groups_by_role() -> None:

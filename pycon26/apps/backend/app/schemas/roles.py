@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models import Role
+from app.schemas.learner import is_target_interest_character
 
 
 class SkillOut(BaseModel):
@@ -19,6 +20,16 @@ class RoleOut(BaseModel):
 class CareerPathwayRequest(BaseModel):
     current_role: str = Field(min_length=1, max_length=120)
     target_interest: str = Field(min_length=1, max_length=120)
+
+    @field_validator("target_interest")
+    @classmethod
+    def validate_target_interest(cls, value: str) -> str:
+        target_interest = value.strip()
+        if not any(character.isalpha() for character in target_interest):
+            raise ValueError("Target interest must include a role or skill name.")
+        if any(not is_target_interest_character(character) for character in target_interest):
+            raise ValueError("Target interest contains unsupported characters.")
+        return target_interest
 
 
 class CareerPathwayLevel(BaseModel):

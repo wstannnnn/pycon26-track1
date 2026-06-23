@@ -7,6 +7,7 @@ from app.schemas.learner import (
 )
 from app.services.learner_analysis import (
     LocalLlmUnavailableError,
+    TargetInterestNotFoundError,
     generate_recommendation,
     normalize_profile_text,
     similarity_search,
@@ -54,10 +55,16 @@ async def analyze_learner_profile(
     payload: LearnerProfileAnalyzeRequest,
 ) -> LearnerProfileAnalyzeResponse:
     normalized_text = normalize_profile_text(payload)
-    similar_matches = await similarity_search(
-        normalized_text,
-        role_query=payload.target_interest or payload.current_role,
-    )
+    try:
+        similar_matches = await similarity_search(
+            normalized_text,
+            role_query=payload.target_interest or payload.current_role,
+        )
+    except TargetInterestNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target interest was not found in the indexed job roles.",
+        ) from exc
     try:
         recommendation, llm_provider = await generate_recommendation(
             profile_text=normalized_text,

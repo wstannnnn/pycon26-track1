@@ -36,6 +36,7 @@ type CareerPathway = {
 };
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const targetInterestPattern = "[A-Za-z0-9 +#&/.,()'-]*[A-Za-z][A-Za-z0-9 +#&/.,()'-]*";
 
 export function PathwayGenerator() {
   const [pathway, setPathway] = useState<CareerPathway | null>(null);
@@ -60,7 +61,7 @@ export function PathwayGenerator() {
       });
 
       if (!response.ok) {
-        throw new Error("Unable to generate a pathway yet.");
+        throw new Error(await responseErrorMessage(response, "Unable to generate a pathway yet."));
       }
 
       setPathway((await response.json()) as CareerPathway);
@@ -103,6 +104,9 @@ export function PathwayGenerator() {
                 required
                 aria-required="true"
                 name="target-interest"
+                minLength={3}
+                maxLength={120}
+                pattern={targetInterestPattern}
                 placeholder="e.g. Data Analyst"
               />
             </Label>
@@ -240,4 +244,13 @@ export function PathwayGenerator() {
       </Card>
     </div>
   );
+}
+
+async function responseErrorMessage(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { detail?: unknown };
+    return typeof payload.detail === "string" ? payload.detail : fallback;
+  } catch {
+    return fallback;
+  }
 }

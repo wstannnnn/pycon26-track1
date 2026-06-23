@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -128,8 +129,7 @@ class LocalLlmClient:
             len(raw_response),
             payload["choices"][0].get("finish_reason", ""),
         )
-        parsed_response = json.loads(extract_json_object(raw_response))
-        return parsed_response
+        return parse_json_object(raw_response)
 
 
 def build_recommendation_prompt(profile_text: str, matches: list[VectorSearchHit]) -> str:
@@ -354,6 +354,23 @@ def extract_json_object(value: str) -> str:
     if start == -1 or end == -1 or end <= start:
         raise ValueError("Local LLM response did not contain a JSON object.")
     return stripped[start : end + 1]
+
+
+def parse_json_object(value: str) -> dict[str, Any]:
+    json_object = extract_json_object(value)
+    try:
+        return json.loads(json_object)
+    except json.JSONDecodeError:
+        repaired = repair_json_object(json_object)
+        if repaired == json_object:
+            raise
+        return json.loads(repaired)
+
+
+def repair_json_object(value: str) -> str:
+    repaired = value.replace("“", '"').replace("”", '"').replace("’", "'")
+    repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
+    return repaired
 
 
 local_llm_client = LocalLlmClient()

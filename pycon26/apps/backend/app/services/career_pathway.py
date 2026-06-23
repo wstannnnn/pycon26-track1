@@ -73,11 +73,7 @@ def build_career_pathway(
     role_query = payload.target_interest.strip() or payload.current_role.strip()
     matches = vector_db.find_role_records(role_query, limit=12)
     if not matches:
-        matches = vector_db.search_text(
-            build_search_query(payload),
-            limit=12,
-            where={"record_type": "job_role"},
-        )
+        raise CareerPathwayDataUnavailableError("No ChromaDB role evidence found.")
     evidence = extract_role_evidence(matches)
     if not evidence:
         raise CareerPathwayDataUnavailableError("No ChromaDB role evidence found.")

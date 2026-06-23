@@ -27,7 +27,8 @@ type LearnerAnalysis = {
       document?: string;
       record_type?: string;
       skills?: string[];
-      source?: string;
+      track?: string;
+      tracks?: string[];
     };
   }>;
   recommendation: {
@@ -93,7 +94,7 @@ export function LearnerIntake() {
       });
 
       if (!response.ok) {
-        throw new Error("Unable to analyze this profile yet.");
+        throw new Error(await responseErrorMessage(response, "Unable to analyze this profile yet."));
       }
 
       setAnalysis((await response.json()) as LearnerAnalysis);
@@ -295,7 +296,7 @@ export function LearnerIntake() {
                     <div className="p-4" key={match.id}>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <p className="font-bold text-slate-900 dark:text-white">
-                          {match.payload.role ?? match.payload.skill ?? match.id}
+                          {match.payload.skill ?? match.payload.role ?? match.id}
                         </p>
                         <ScoreBar score={match.score} />
                       </div>
@@ -334,14 +335,24 @@ export function LearnerIntake() {
   );
 }
 
+async function responseErrorMessage(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { detail?: unknown };
+    return typeof payload.detail === "string" ? payload.detail : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function evidenceDescription(payload: LearnerAnalysis["similar_matches"][number]["payload"]) {
   return payload.description || payload.document || "No description available for this match.";
 }
 
 function EvidenceMeta({ payload }: { payload: LearnerAnalysis["similar_matches"][number]["payload"] }) {
+  const track = payload.track || payload.tracks?.[0] || "";
   const meta = [
     formatRecordType(payload.record_type),
-    payload.source ? `Source: ${payload.source}` : "",
+    track ? `Track: ${track}` : "",
   ].filter(Boolean);
 
   if (!meta.length) {

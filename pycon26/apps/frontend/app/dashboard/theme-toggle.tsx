@@ -26,11 +26,18 @@ function getInitialTheme(): Theme {
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    const initialTheme = getInitialTheme();
+    applyTheme(initialTheme);
+
+    const frame = window.requestAnimationFrame(() => {
+      setTheme(initialTheme);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";

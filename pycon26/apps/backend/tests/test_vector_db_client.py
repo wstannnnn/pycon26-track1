@@ -36,6 +36,46 @@ def test_upsert_and_search_points_with_chromadb(tmp_path: Path) -> None:
     assert matches[0].payload["document"]
 
 
+def test_collections_use_cosine_hnsw_space(tmp_path: Path) -> None:
+    client = VectorDbClient(
+        path=str(tmp_path / "chroma"),
+        collection="cosine_job_skills_test",
+        unique_skills_collection="cosine_unique_skills_test",
+        data_dir=str(tmp_path / "data"),
+        auto_index=False,
+    )
+
+    unique_collection = client.get_collection(
+        "cosine_unique_skills_test",
+        description="SkillsFuture unique skills list",
+    )
+
+    assert client.collection.configuration["hnsw"]["space"] == "cosine"
+    assert unique_collection.configuration["hnsw"]["space"] == "cosine"
+
+
+def test_cosine_search_scores_exact_match_as_one(tmp_path: Path) -> None:
+    client = VectorDbClient(
+        path=str(tmp_path / "chroma"),
+        collection="cosine_score_test",
+        data_dir=str(tmp_path / "data"),
+        auto_index=False,
+    )
+    client.upsert_points(
+        [
+            VectorPoint(
+                id="sql-dashboard",
+                document="SQL dashboard",
+                payload={"skill": "SQL"},
+            )
+        ]
+    )
+
+    matches = client.search_text("SQL dashboard", limit=1)
+
+    assert matches[0].score == 1.0
+
+
 def test_find_role_records_matches_role_column(tmp_path: Path) -> None:
     client = VectorDbClient(
         path=str(tmp_path / "chroma"),
@@ -72,7 +112,7 @@ def test_find_role_records_matches_role_column(tmp_path: Path) -> None:
     assert matches[0].payload["role"] == "Data Analyst"
 
 
-def test_search_text_fuses_results_with_same_display_name(tmp_path: Path) -> None:
+def test_search_text_prefers_skill_title_for_role_skill_matches(tmp_path: Path) -> None:
     client = VectorDbClient(
         path=str(tmp_path / "chroma"),
         collection="fused_results_test",
@@ -88,6 +128,7 @@ def test_search_text_fuses_results_with_same_display_name(tmp_path: Path) -> Non
                     "record_type": "role_skill",
                     "role": "Data Analyst",
                     "skill": "SQL",
+                    "track": "Data and Artificial Intelligence",
                     "description": "Query data for analysis.",
                 },
             ),
@@ -98,6 +139,7 @@ def test_search_text_fuses_results_with_same_display_name(tmp_path: Path) -> Non
                     "record_type": "role_skill",
                     "role": "Data Analyst",
                     "skill": "Python",
+                    "track": "Data and Artificial Intelligence",
                     "description": "Analyse data with Python.",
                 },
             ),
@@ -106,13 +148,12 @@ def test_search_text_fuses_results_with_same_display_name(tmp_path: Path) -> Non
 
     matches = client.search_text("Data Analyst SQL Python", limit=5)
 
-    assert len(matches) == 1
-    assert matches[0].payload["role"] == "Data Analyst"
-    assert matches[0].payload["skills"] == ["SQL", "Python"]
-    assert sorted(matches[0].payload["matched_ids"]) == [
-        "data-analyst-python",
-        "data-analyst-sql",
-    ]
+    assert len(matches) == 2
+    assert {match.payload["skill"] for match in matches} == {"Python", "SQL"}
+    assert {match.payload["role"] for match in matches} == {"Data Analyst"}
+    assert all(
+        match.payload["tracks"] == ["Data and Artificial Intelligence"] for match in matches
+    )
 
 
 def test_load_skill_records_from_joined_roles_jsonl(tmp_path: Path) -> None:

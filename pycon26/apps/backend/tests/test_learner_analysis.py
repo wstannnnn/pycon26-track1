@@ -6,6 +6,7 @@ from app.schemas.learner import LearnerRecommendation
 from app.schemas.vectors import VectorSearchHit
 from app.services.learner_analysis import (
     LocalLlmUnavailableError,
+    TargetInterestNotFoundError,
     generate_recommendation,
     search_learner_evidence,
 )
@@ -137,15 +138,42 @@ def test_analyze_learner_profile_returns_502_when_llm_fails(monkeypatch) -> None
     assert response.json()["detail"] == "Local LLM failed to generate a valid response."
 
 
+def test_analyze_learner_profile_returns_404_when_target_role_is_not_indexed(monkeypatch) -> None:
+    async def fake_similarity_search(text: str, role_query: str = "") -> list[VectorSearchHit]:
+        assert role_query == "Quantum Career Wizard"
+        raise TargetInterestNotFoundError("not found")
+
+    monkeypatch.setattr("app.routers.learner.similarity_search", fake_similarity_search)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/learner/analyze",
+            json={
+                "current_role": "Customer Support Specialist",
+                "target_interest": "Quantum Career Wizard",
+                "skillset": "SQL, Excel, stakeholder interviews",
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Target interest was not found in the indexed job roles."
+
+
 def test_search_learner_evidence_uses_role_column_first() -> None:
     class FakeVectorDbClient:
         def __init__(self) -> None:
             self.calls: list[str] = []
 
-        def find_role_records(self, role_query: str, limit: int = 5) -> list[VectorSearchHit]:
+        def find_role_records(
+            self,
+            role_query: str,
+            limit: int = 5,
+            auto_index: bool = True,
+        ) -> list[VectorSearchHit]:
             self.calls.append("job_skills.find_role_records")
             assert role_query == "Data Analyst"
             assert limit == 3
+            assert auto_index is False
             return [
                 VectorSearchHit(
                     id="job-role-data-analyst",
@@ -159,11 +187,13 @@ def test_search_learner_evidence_uses_role_column_first() -> None:
             text: str,
             limit: int = 5,
             where: dict[str, object] | None = None,
+            auto_index: bool = True,
         ) -> list[VectorSearchHit]:
             self.calls.append("job_skills.search_text")
             assert "Skillset: SQL" in text
             assert limit == 8
             assert where == {"role": "Data Analyst"}
+            assert auto_index is False
             return [
                 VectorSearchHit(
                     id="role-skill-data-analyst-sql",
@@ -217,18 +247,48 @@ def test_search_learner_evidence_uses_role_column_first() -> None:
     ]
 
 
+def test_search_learner_evidence_raises_when_target_role_is_missing() -> None:
+    class FakeVectorDbClient:
+        def find_role_records(
+            self,
+            role_query: str,
+            limit: int = 5,
+            auto_index: bool = True,
+        ) -> list[VectorSearchHit]:
+            assert role_query == "Quantum Career Wizard"
+            assert limit == 3
+            assert auto_index is False
+            return []
+
+    with pytest.raises(TargetInterestNotFoundError):
+        search_learner_evidence(
+            text="Skillset: SQL",
+            role_query="Quantum Career Wizard",
+            client=FakeVectorDbClient(),
+        )
+
+
 @pytest.mark.anyio
-async def test_generate_recommendation_raises_when_local_llm_fails() -> None:
+async def test_generate_recommendation_uses_evidence_fallback_when_local_llm_returns_invalid_json() -> None:
     class BrokenLocalLlm:
         async def recommend(self, profile_text, matches):
             raise ValueError("invalid local model output")
 
-    with pytest.raises(LocalLlmUnavailableError):
-        await generate_recommendation(
-            profile_text="Skillset: SQL",
-            matches=[],
-            client=BrokenLocalLlm(),
-        )
+    recommendation, provider = await generate_recommendation(
+        profile_text="Skillset: SQL",
+        matches=[
+            VectorSearchHit(
+                id="sql",
+                score=0.9,
+                payload={"role": "Data Analyst", "skill": "SQL"},
+            )
+        ],
+        client=BrokenLocalLlm(),
+    )
+
+    assert provider == "evidence-fallback"
+    assert recommendation.next_roles == ["Data Analyst"]
+    assert recommendation.priority_skills == ["SQL"]
 
 
 @pytest.mark.anyio

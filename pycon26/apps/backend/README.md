@@ -47,6 +47,8 @@ The vector client uses local persistent ChromaDB configured with:
 ```text
 VECTOR_DB_PATH=./chroma
 VECTOR_DB_COLLECTION=job_skills
+VECTOR_DB_UNIQUE_SKILLS_COLLECTION=unique_skills
+VECTOR_DB_HNSW_SPACE=cosine
 VECTOR_DB_AUTO_INDEX=true
 SKILLS_DATA_DIR=../../data
 ```
@@ -62,6 +64,10 @@ POST /vectors/index
 - `jobsandskills-skillsfuture-unique-skills-list.xlsx`
 - `jobsandskills-skillsfuture-skills-framework-dataset.xlsx`
 - `jobsandskills-skillsfuture-tsc-to-unique-skills-mapping.xlsx`
+
+`VECTOR_DB_HNSW_SPACE=cosine` configures new ChromaDB collections for cosine
+similarity. Existing collections keep their original HNSW metric, so rerun
+`/vectors/index` and `/vectors/index/unique-skills` after changing this setting.
 
 ## Learner Analysis Endpoint
 

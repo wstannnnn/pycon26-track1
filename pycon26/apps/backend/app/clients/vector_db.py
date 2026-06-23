@@ -24,12 +24,14 @@ class VectorDbClient:
         path: str = settings.vector_db_path,
         collection: str = settings.vector_db_collection,
         unique_skills_collection: str = settings.vector_db_unique_skills_collection,
+        hnsw_space: str = settings.vector_db_hnsw_space,
         data_dir: str = settings.skills_data_dir,
         auto_index: bool = settings.vector_db_auto_index,
     ) -> None:
         self.path = resolve_backend_path(path)
         self.collection_name = collection
         self.unique_skills_collection_name = unique_skills_collection
+        self.hnsw_space = hnsw_space
         self.data_dir = resolve_backend_path(data_dir)
         self.auto_index = auto_index
         self._client = chromadb.PersistentClient(path=str(self.path))
@@ -47,6 +49,7 @@ class VectorDbClient:
     def get_collection(self, name: str, description: str) -> Collection:
         return self._client.get_or_create_collection(
             name=name,
+            configuration={"hnsw": {"space": self.hnsw_space}},
             metadata={"description": description},
         )
 
@@ -73,8 +76,10 @@ class VectorDbClient:
         text: str,
         limit: int = 5,
         where: dict[str, object] | None = None,
+        auto_index: bool = True,
     ) -> list[VectorSearchHit]:
-        self.ensure_indexed()
+        if auto_index:
+            self.ensure_indexed()
         return self.search(vector=embed_text(text), limit=limit, where=where)
 
     def search_unique_skills_text(
@@ -139,14 +144,20 @@ class VectorDbClient:
             matches.append(
                 VectorSearchHit(
                     id=str(item_id),
-                    score=round(1 / (1 + distance), 6),
+                    score=distance_to_score(distance, collection),
                     payload=metadata,
                 )
             )
         return fuse_matches_by_name(matches, limit=limit)
 
-    def find_role_records(self, role_query: str, limit: int = 5) -> list[VectorSearchHit]:
-        self.ensure_indexed()
+    def find_role_records(
+        self,
+        role_query: str,
+        limit: int = 5,
+        auto_index: bool = True,
+    ) -> list[VectorSearchHit]:
+        if auto_index:
+            self.ensure_indexed()
         normalized_query = normalize_tokens(role_query)
         if not normalized_query:
             return []
@@ -192,6 +203,7 @@ class VectorDbClient:
 
     def index_unique_skills(self, path: Path | None = None) -> dict[str, object]:
         unique_skills_path = path or find_unique_skills_path(self.data_dir)
+        self.reset_collection(self.unique_skills_collection_name)
         unique_skills_collection = self.get_collection(
             self.unique_skills_collection_name,
             description="SkillsFuture unique skills list",
@@ -221,12 +233,14 @@ class VectorDbClient:
             })
         return collections
 
-    def reset_collection(self) -> None:
+    def reset_collection(self, collection_name: str | None = None) -> None:
+        name = collection_name or self.collection_name
         try:
-            self._client.delete_collection(name=self.collection_name)
+            self._client.delete_collection(name=name)
         except Exception:
             pass
-        self._collection = None
+        if name == self.collection_name:
+            self._collection = None
 
 
 def embed_text(text: str, dimensions: int = EMBEDDING_DIMENSIONS) -> list[float]:
@@ -239,6 +253,18 @@ def embed_text(text: str, dimensions: int = EMBEDDING_DIMENSIONS) -> list[float]
         vector[bucket] += 1.0
     length = sum(value * value for value in vector) ** 0.5 or 1.0
     return [round(value / length, 6) for value in vector]
+
+
+def distance_to_score(distance: float, collection: Collection) -> float:
+    if collection_space(collection) == "cosine":
+        return round(max(0.0, min(1.0, 1.0 - distance)), 6)
+    return round(1 / (1 + distance), 6)
+
+
+def collection_space(collection: Collection) -> str:
+    configuration = getattr(collection, "configuration", {}) or {}
+    hnsw_configuration = configuration.get("hnsw") or {}
+    return str(hnsw_configuration.get("space") or "l2")
 
 
 def load_skill_records(data_dir: Path):
@@ -604,6 +630,7 @@ def fuse_matches_by_name(matches: list[VectorSearchHit], limit: int) -> list[Vec
             payload["descriptions"] = unique_clean_values([payload.get("description")])
             payload["documents"] = unique_clean_values([payload.get("document")])
             payload["sources"] = unique_clean_values([payload.get("source")])
+            payload["tracks"] = unique_clean_values([payload.get("track")])
             fused[key] = VectorSearchHit(id=match.id, score=match.score, payload=payload)
             continue
 
@@ -639,6 +666,10 @@ def fuse_matches_by_name(matches: list[VectorSearchHit], limit: int) -> list[Vec
             *existing.payload.get("sources", []),
             match.payload.get("source"),
         ])
+        existing.payload["tracks"] = unique_clean_values([
+            *existing.payload.get("tracks", []),
+            match.payload.get("track"),
+        ])
         existing.score = max(existing.score, match.score)
 
     return sorted(fused.values(), key=lambda match: match.score, reverse=True)[:limit]
@@ -646,7 +677,7 @@ def fuse_matches_by_name(matches: list[VectorSearchHit], limit: int) -> list[Vec
 
 def display_name_key(match: VectorSearchHit) -> str:
     payload = match.payload
-    name = clean(payload.get("role")) or clean(payload.get("skill")) or clean(payload.get("task"))
+    name = clean(payload.get("skill")) or clean(payload.get("role")) or clean(payload.get("task"))
     if not name:
         name = match.id
     return name.casefold()
