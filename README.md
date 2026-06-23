@@ -66,6 +66,7 @@ Project-owned Markdown docs:
 - [C4 architecture diagrams](pycon26/docs/architecture-c4.md): C1 system context and C2 container diagrams.
 - [UML diagrams](pycon26/docs/uml-diagrams.md): learner analysis class and sequence diagrams.
 - [Snapshot guide](pycon26/docs/snapshots/README.md): description of captured UI flow screenshots and regeneration command.
+- [Interaction logs](pycon26/docs/interaction-logs.md): AI-human collaboration trail and human contribution notes.
 
 Other generated docs/artifacts:
 
