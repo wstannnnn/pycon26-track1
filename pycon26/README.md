@@ -2,6 +2,10 @@
 
 Monorepo for a career pathway and skills intelligence product.
 
+Architecture diagrams live in [`docs/architecture-c4.md`](docs/architecture-c4.md).
+UML diagrams live in [`docs/uml-diagrams.md`](docs/uml-diagrams.md).
+Bring-up instructions live in [`docs/bring-up.md`](docs/bring-up.md).
+Swagger/OpenAPI spec lives in [`docs/openapi.json`](docs/openapi.json).
 Data provenance and retrieval notes live in [`docs/data-provenance.md`](docs/data-provenance.md).
 
 ## Apps
