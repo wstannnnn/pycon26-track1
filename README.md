@@ -48,17 +48,65 @@ pycon26-track1/
         ├── bring-up.md
         ├── data-provenance.md
         ├── openapi.json
+        ├── snapshots/
+        │   └── README.md
         └── uml-diagrams.md
 ```
 
 ## Important Documents
 
-- `pycon26/README.md`: main application README.
-- `pycon26/docs/bring-up.md`: how to download data, index ChromaDB, run llama.cpp, start the backend, open Swagger, and start the frontend.
-- `pycon26/docs/data-provenance.md`: SkillsFuture source data and retrieval flow.
-- `pycon26/docs/architecture-c4.md`: C1 and C2 architecture diagrams.
-- `pycon26/docs/uml-diagrams.md`: learner analysis class and sequence diagrams.
-- `pycon26/docs/openapi.json`: generated Swagger/OpenAPI spec.
+Project-owned Markdown docs:
+
+- [Root project summary](README.md): top-level summary, folder structure, snapshot links, and quick start.
+- [Application README](pycon26/README.md): monorepo app overview and local development commands.
+- [Agent guide](pycon26/AGENTS.md): repository guidance for coding agents.
+- [Backend README](pycon26/apps/backend/README.md): backend commands, endpoint notes, vector settings, and local LLM settings.
+- [Bring-up guide](pycon26/docs/bring-up.md): download data, index ChromaDB, run llama.cpp, start backend/frontend, and open Swagger.
+- [Data provenance](pycon26/docs/data-provenance.md): SkillsFuture source files, transformation flow, and retrieval flow.
+- [C4 architecture diagrams](pycon26/docs/architecture-c4.md): C1 system context and C2 container diagrams.
+- [UML diagrams](pycon26/docs/uml-diagrams.md): learner analysis class and sequence diagrams.
+- [Snapshot guide](pycon26/docs/snapshots/README.md): description of captured UI flow screenshots and regeneration command.
+
+Other generated docs/artifacts:
+
+- [Swagger/OpenAPI spec](pycon26/docs/openapi.json): generated backend API spec.
+- [UI snapshots](pycon26/docs/snapshots/): captured PNG screenshots for the primary user flow.
+
+## UI Flow Snapshots
+
+The primary user flow is captured under `pycon26/docs/snapshots/`:
+
+### Landing Page
+
+![Landing page](pycon26/docs/snapshots/01-landing.png)
+
+### Login Page
+
+![Login page](pycon26/docs/snapshots/02-login.png)
+
+### Login Form Filled
+
+![Login form filled](pycon26/docs/snapshots/03-login-filled.png)
+
+### Dashboard Pathway Empty State
+
+![Dashboard pathway empty state](pycon26/docs/snapshots/04-dashboard-pathway-empty.png)
+
+### Pathway Result
+
+![Pathway result](pycon26/docs/snapshots/05-pathway-result.png)
+
+### Profile Analysis Empty State
+
+![Profile analysis empty state](pycon26/docs/snapshots/06-profile-analysis-empty.png)
+
+### Profile Analysis Form
+
+![Profile analysis form](pycon26/docs/snapshots/07-profile-analysis-form.png)
+
+### Profile Analysis Result
+
+![Profile analysis result](pycon26/docs/snapshots/08-profile-analysis-result.png)
 
 ## Quick Start
 
