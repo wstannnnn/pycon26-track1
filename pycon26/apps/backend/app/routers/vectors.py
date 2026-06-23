@@ -7,6 +7,26 @@ from app.schemas.vectors import VectorSearchRequest, VectorSearchResponse, Vecto
 router = APIRouter(prefix="/vectors", tags=["vectors"])
 
 
+@router.get("/collections")
+async def list_collections() -> dict[str, object]:
+    try:
+        collections = await run_in_threadpool(vector_db_client.list_collections)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Vector database collection listing failed.",
+        ) from exc
+
+    return {
+        "status": "ok",
+        "result": {
+            "collections": collections,
+            "count": len(collections),
+            "total": len(collections),
+        },
+    }
+
+
 @router.post("/upsert")
 async def upsert_vectors(payload: VectorUpsertRequest) -> dict[str, object]:
     try:
@@ -46,3 +66,16 @@ async def index_vectors() -> dict[str, object]:
         ) from exc
 
     return {"status": "ok", "result": {"indexed": indexed}}
+
+
+@router.post("/index/unique-skills")
+async def index_unique_skills() -> dict[str, object]:
+    try:
+        result = await run_in_threadpool(vector_db_client.index_unique_skills)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unique skills vector database indexing failed.",
+        ) from exc
+
+    return {"status": "ok", "result": result}

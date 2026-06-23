@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from app.clients.vector_db import VectorDbClient, load_skill_records
+from app.clients.vector_db import VectorDbClient, load_skill_records, load_unique_skills
 from app.schemas.vectors import VectorPoint
 
 
@@ -26,6 +26,11 @@ def test_upsert_and_search_points_with_chromadb(tmp_path: Path) -> None:
     matches = client.search_text("SQL dashboard analyst", limit=1)
 
     assert response == {"status": "ok", "result": {"upserted": 1}}
+    assert json.loads(client.collection.metadata["metadata_keys"]) == [
+        "role",
+        "skill",
+        "source",
+    ]
     assert matches[0].id == "python-data-analyst"
     assert matches[0].payload["role"] == "Data Analyst"
     assert matches[0].payload["document"]
@@ -126,6 +131,98 @@ def test_load_skill_records_from_joined_roles_jsonl(tmp_path: Path) -> None:
     assert records[0].payload["role"] == "Data Analyst"
     assert records[1].payload["skill"] == "Data Analytics"
     assert records[2].payload["task"] == "Build dashboards"
+
+
+def test_load_unique_skills_from_processed_json(tmp_path: Path) -> None:
+    path = tmp_path / "jobsandskills-skillsfuture-unique-skills-list.json"
+    path.write_text(
+        json.dumps(
+            {
+                "sheets": {
+                    "Unique Skills List": [
+                        {
+                            "skill_title": "Data Analytics",
+                            "skill_description": "Analyse data to identify patterns.",
+                            "skill_type": "tsc",
+                            "Emerging Skills": True,
+                            "CASL Skills": False,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    records = list(load_unique_skills(path))
+
+    assert len(records) == 1
+    assert records[0].payload == {
+        "source": "jobsandskills-skillsfuture-unique-skills-list.json",
+        "record_type": "unique_skill",
+        "skill": "Data Analytics",
+        "description": "Analyse data to identify patterns.",
+        "skill_type": "tsc",
+        "emerging_skill": True,
+        "casl_skill": False,
+    }
+
+
+def test_index_unique_skills_uses_processed_json(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    processed_dir = data_dir / "processed"
+    processed_dir.mkdir(parents=True)
+    (processed_dir / "jobsandskills-skillsfuture-unique-skills-list.json").write_text(
+        json.dumps(
+            {
+                "sheets": {
+                    "Unique Skills List": [
+                        {
+                            "skill_title": "Data Analytics",
+                            "skill_description": "Analyse data to identify patterns.",
+                            "skill_type": "tsc",
+                            "Emerging Skills": False,
+                            "CASL Skills": True,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = VectorDbClient(
+        path=str(tmp_path / "chroma"),
+        collection="job_skills_test",
+        unique_skills_collection="unique_skills_test",
+        data_dir=str(data_dir),
+        auto_index=False,
+    )
+
+    result = client.index_unique_skills()
+    unique_collection = client.get_collection(
+        "unique_skills_test",
+        description="SkillsFuture unique skills list",
+    )
+    stored_records = unique_collection.get(limit=1, include=["metadatas"])
+
+    assert result["indexed"] == 1
+    assert result["collection"]["name"] == "unique_skills_test"
+    assert result["collection"]["count"] == 1
+    assert result["collection"]["metadata"]["description"] == "SkillsFuture unique skills list"
+    assert json.loads(result["collection"]["metadata"]["metadata_keys"]) == [
+        "casl_skill",
+        "description",
+        "emerging_skill",
+        "record_type",
+        "skill",
+        "skill_type",
+        "source",
+    ]
+    assert client.collection.count() == 0
+    assert unique_collection.count() == 1
+    assert stored_records["metadatas"][0]["record_type"] == "unique_skill"
+    assert stored_records["metadatas"][0]["skill"] == "Data Analytics"
+    assert stored_records["metadatas"][0]["casl_skill"] is True
 
 
 def create_joined_roles_jsonl(path: Path) -> None:

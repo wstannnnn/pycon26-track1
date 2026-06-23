@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { setAuthCookie, setAuthUser } from "@/lib/auth";
 
 import { authTitle, compactIntro, eyebrow, formInput, formLabel, primaryButton } from "../styles";
+import { ThemeToggle } from "../dashboard/theme-toggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -62,9 +63,12 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-8">
+    <main className="relative grid min-h-screen place-items-center px-4 py-8">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <section
-        className="w-[min(100%,460px)] rounded-lg border border-slate-200 bg-white p-6 md:p-8"
+        className="w-[min(100%,460px)] rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8"
         aria-labelledby="login-title"
       >
         <p className={eyebrow}>Welcome back</p>
@@ -90,12 +94,12 @@ export default function LoginPage() {
               required
             />
           </label>
-          <div className="flex flex-col gap-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
             <label className="inline-flex items-center gap-2">
               <input className="size-4" name="remember" type="checkbox" />
               Remember me
             </label>
-            <Link className="font-bold text-teal-900" href="/forgot-password">
+            <Link className="font-bold text-sky-700 dark:text-sky-200" href="/forgot-password">
               Forgot password?
             </Link>
           </div>
@@ -105,12 +109,18 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-slate-600">
+        <p className="mt-6 text-center text-slate-600 dark:text-slate-300">
           New here?{" "}
-          <Link className="font-bold text-teal-900" href="/register">
+          <Link className="font-bold text-sky-700 dark:text-sky-200" href="/register">
             Create an account
           </Link>
         </p>
+        <Link
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-5 font-bold text-slate-800 transition hover:border-slate-800 focus-visible:ring-4 focus-visible:ring-sky-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-100 dark:hover:border-sky-400"
+          href="/"
+        >
+          Go back
+        </Link>
       </section>
     </main>
   );

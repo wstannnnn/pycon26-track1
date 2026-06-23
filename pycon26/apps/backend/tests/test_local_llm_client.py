@@ -3,7 +3,12 @@ import json
 import httpx
 import pytest
 
-from app.clients.local_llm import LocalLlmClient, build_recommendation_prompt, compress_evidence
+from app.clients.local_llm import (
+    LocalLlmClient,
+    build_recommendation_prompt,
+    compress_evidence,
+    recommendation_from_json,
+)
 from app.schemas.vectors import VectorSearchHit
 
 
@@ -129,7 +134,24 @@ def test_build_recommendation_prompt_compacts_large_vector_payloads() -> None:
     assert "SQL" in prompt
     assert "Analyse datasets and build dashboards." in prompt
     assert "very large indexed document" not in prompt
+    assert "30 to 90 minutes" in prompt
+    assert "measurable output" in prompt
     assert len(prompt) < 5_000
+
+
+def test_recommendation_from_json_timeboxes_vague_actions() -> None:
+    recommendation = recommendation_from_json(
+        {
+            "next_roles": ["Data Analyst"],
+            "priority_skills": ["SQL"],
+            "actions_today": ["Practice SQL joins"],
+            "explanation": "Matched against SkillsFuture role evidence.",
+        }
+    )
+
+    assert recommendation.actions_today == [
+        "Spend 30 minutes today to practice SQL joins and save one note or artifact."
+    ]
 
 
 def test_compress_evidence_groups_by_role() -> None:

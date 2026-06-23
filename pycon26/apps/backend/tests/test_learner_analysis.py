@@ -80,6 +80,33 @@ def test_analyze_learner_profile_requires_skillset_or_resume() -> None:
     assert response.status_code == 422
 
 
+def test_analyze_learner_profile_requires_target_interest() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/learner/analyze",
+            json={
+                "current_role": "Customer Support Specialist",
+                "skillset": "SQL, Excel, stakeholder interviews",
+            },
+        )
+
+    assert response.status_code == 422
+
+
+def test_analyze_learner_profile_validates_target_interest() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/learner/analyze",
+            json={
+                "current_role": "Customer Support Specialist",
+                "target_interest": "123 !!!",
+                "skillset": "SQL, Excel, stakeholder interviews",
+            },
+        )
+
+    assert response.status_code == 422
+
+
 def test_analyze_learner_profile_returns_502_when_llm_fails(monkeypatch) -> None:
     async def fake_similarity_search(text: str, role_query: str = "") -> list[VectorSearchHit]:
         return [
@@ -112,7 +139,11 @@ def test_analyze_learner_profile_returns_502_when_llm_fails(monkeypatch) -> None
 
 def test_search_learner_evidence_uses_role_column_first() -> None:
     class FakeVectorDbClient:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
         def find_role_records(self, role_query: str, limit: int = 5) -> list[VectorSearchHit]:
+            self.calls.append("job_skills.find_role_records")
             assert role_query == "Data Analyst"
             assert limit == 3
             return [
@@ -129,6 +160,7 @@ def test_search_learner_evidence_uses_role_column_first() -> None:
             limit: int = 5,
             where: dict[str, object] | None = None,
         ) -> list[VectorSearchHit]:
+            self.calls.append("job_skills.search_text")
             assert "Skillset: SQL" in text
             assert limit == 8
             assert where == {"role": "Data Analyst"}
@@ -144,15 +176,44 @@ def test_search_learner_evidence_uses_role_column_first() -> None:
                 )
             ]
 
+        def search_unique_skills_text(
+            self,
+            text: str,
+            limit: int = 5,
+            where: dict[str, object] | None = None,
+        ) -> list[VectorSearchHit]:
+            self.calls.append("unique_skills.search_text")
+            assert "Skillset: SQL" in text
+            assert limit == 5
+            assert where is None
+            return [
+                VectorSearchHit(
+                    id="unique-skill-sql",
+                    score=0.8,
+                    payload={
+                        "record_type": "unique_skill",
+                        "skill": "SQL",
+                        "description": "Query and manage relational data.",
+                    },
+                )
+            ]
+
+    fake_client = FakeVectorDbClient()
     matches = search_learner_evidence(
         text="Skillset: SQL",
         role_query="Data Analyst",
-        client=FakeVectorDbClient(),
+        client=fake_client,
     )
 
     assert [match.id for match in matches] == [
         "job-role-data-analyst",
         "role-skill-data-analyst-sql",
+        "unique-skill-sql",
+    ]
+    assert fake_client.calls == [
+        "job_skills.find_role_records",
+        "job_skills.search_text",
+        "unique_skills.search_text",
     ]
 
 

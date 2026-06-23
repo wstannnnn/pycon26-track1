@@ -65,11 +65,11 @@ export function DashboardTabs() {
       </section>
 
       <section className="mt-8">
-        <div className="mb-4">
-          <p className="m-0 text-xs font-bold uppercase text-sky-700 dark:text-sky-200">
+        <div className="mb-4 grid gap-1 pl-1 sm:pl-2">
+          <p className="m-0 text-xs font-bold uppercase leading-none text-sky-700 dark:text-sky-200">
             Choose a starting point
           </p>
-          <h2 className="m-0 mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="m-0 text-2xl font-bold leading-tight text-slate-900 dark:text-white">
             What would you like to do?
           </h2>
         </div>

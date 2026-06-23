@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ type LearnerAnalysis = {
       skill?: string;
       description?: string;
       document?: string;
+      record_type?: string;
       skills?: string[];
       source?: string;
     };
@@ -46,6 +48,7 @@ type ResumeUploadResult = {
 };
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const targetInterestPattern = "[A-Za-z0-9 +#&/.,()'-]*[A-Za-z][A-Za-z0-9 +#&/.,()'-]*";
 
 export function LearnerIntake() {
   const [analysis, setAnalysis] = useState<LearnerAnalysis | null>(null);
@@ -53,14 +56,26 @@ export function LearnerIntake() {
   const [targetInterest, setTargetInterest] = useState("");
   const [skillset, setSkillset] = useState("");
   const [resumeText, setResumeText] = useState("");
+  const [selectedResumeFileName, setSelectedResumeFileName] = useState("No file selected");
   const [error, setError] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const currentSkillSignals = extractSkillSignals(skillset);
+  const missingPrioritySkills = analysis
+    ? findMissingSkills(analysis.recommendation.priority_skills, currentSkillSignals)
+    : [];
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    const targetInterestValidationError = validateTargetInterest(targetInterest);
+    if (targetInterestValidationError) {
+      setError(targetInterestValidationError);
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload = {
@@ -94,6 +109,7 @@ export function LearnerIntake() {
       return;
     }
 
+    setSelectedResumeFileName(file.name);
     setError("");
     setUploadStatus("");
     setIsUploadingResume(true);
@@ -136,16 +152,30 @@ export function LearnerIntake() {
 
         <CardContent>
           <form className="grid gap-4" onSubmit={handleSubmit}>
-            <Label>
-              Upload resume PDF
-              <Input
-                accept="application/pdf"
-                className="flex cursor-pointer items-center py-2 file:mr-3 file:min-h-8 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-slate-700 file:transition hover:file:bg-slate-200 focus:file:bg-slate-200 dark:file:bg-slate-800 dark:file:text-slate-100 dark:hover:file:bg-slate-700"
-                disabled={isUploadingResume}
-                type="file"
-                onChange={(event) => handleResumeUpload(event.target.files?.[0])}
-              />
-            </Label>
+            <div className="grid gap-2">
+              <span className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100">
+                Upload resume PDF
+              </span>
+              <div className="flex min-h-11 items-center gap-4 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                <label
+                  className="inline-flex min-h-8 shrink-0 cursor-pointer items-center rounded-md bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                  htmlFor="resume-upload"
+                >
+                  Choose file
+                </label>
+                <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">
+                  {selectedResumeFileName}
+                </span>
+                <input
+                  id="resume-upload"
+                  accept="application/pdf"
+                  className="sr-only"
+                  disabled={isUploadingResume}
+                  type="file"
+                  onChange={(event) => handleResumeUpload(event.target.files?.[0])}
+                />
+              </div>
+            </div>
             {isUploadingResume ? (
               <p className="text-sm font-bold text-sky-700 dark:text-sky-200">Extracting resume profile...</p>
             ) : null}
@@ -162,9 +192,16 @@ export function LearnerIntake() {
               />
             </Label>
             <Label>
-              Target interest
+              <span>
+                Target interest <span className="text-red-600 dark:text-red-400">*</span>
+              </span>
               <Input
+                required
+                aria-required="true"
                 name="target-interest"
+                minLength={3}
+                maxLength={160}
+                pattern={targetInterestPattern}
                 placeholder="e.g. Data Analyst"
                 value={targetInterest}
                 onChange={(event) => setTargetInterest(event.target.value)}
@@ -192,7 +229,11 @@ export function LearnerIntake() {
 
             {error ? <p className="text-sm font-bold text-red-700">{error}</p> : null}
 
-            <Button className="w-full" disabled={isSubmitting || isUploadingResume} type="submit">
+            <Button
+              className="w-full dark:bg-sky-400 dark:text-white dark:hover:bg-sky-300 dark:focus-visible:ring-sky-300"
+              disabled={isSubmitting || isUploadingResume}
+              type="submit"
+            >
               {isSubmitting ? "Analyzing..." : "Analyze profile"}
             </Button>
           </form>
@@ -213,6 +254,19 @@ export function LearnerIntake() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6">
+              <div className="grid gap-3">
+                <SkillSignalPanel
+                  title="Current skill signals"
+                  emptyText="Add skills or upload a resume to show current skill signals."
+                  values={currentSkillSignals}
+                />
+                <SkillSignalPanel
+                  title="Skill gaps to close"
+                  emptyText="No obvious gaps found against the priority skills."
+                  values={missingPrioritySkills}
+                />
+              </div>
+
               <div className="grid gap-4 xl:grid-cols-3">
                 <ResultList
                   title="Where can I go next?"
@@ -248,6 +302,7 @@ export function LearnerIntake() {
                       <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
                         {evidenceDescription(match.payload)}
                       </p>
+                      <EvidenceMeta payload={match.payload} />
                     </div>
                   ))}
                 </div>
@@ -257,6 +312,14 @@ export function LearnerIntake() {
         ) : (
           <CardContent className="grid min-h-96 place-items-center text-center">
             <div>
+              <Image
+                alt=""
+                aria-hidden="true"
+                className="mx-auto mb-4 h-32 w-32 object-contain"
+                height={128}
+                src="/images/profile-empty-state.png"
+                width={128}
+              />
               <p className="text-sm font-bold uppercase text-sky-700 dark:text-sky-200">Awaiting profile</p>
               <CardTitle className="mt-2">Your roadmap will appear here.</CardTitle>
               <CardDescription className="mt-2 max-w-lg">
@@ -273,6 +336,44 @@ export function LearnerIntake() {
 
 function evidenceDescription(payload: LearnerAnalysis["similar_matches"][number]["payload"]) {
   return payload.description || payload.document || "No description available for this match.";
+}
+
+function EvidenceMeta({ payload }: { payload: LearnerAnalysis["similar_matches"][number]["payload"] }) {
+  const meta = [
+    formatRecordType(payload.record_type),
+    payload.source ? `Source: ${payload.source}` : "",
+  ].filter(Boolean);
+
+  if (!meta.length) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {meta.map((item) => (
+        <Badge
+          className="rounded-md border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          key={item}
+        >
+          {item}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
+function validateTargetInterest(value: string) {
+  const targetInterest = value.trim();
+  if (targetInterest.length < 3) {
+    return "Enter a target interest with at least 3 characters.";
+  }
+  if (!/[A-Za-z]/.test(targetInterest)) {
+    return "Target interest must include a role or skill name.";
+  }
+  if (!new RegExp(`^${targetInterestPattern}$`).test(targetInterest)) {
+    return "Target interest can only include letters, numbers, spaces, and common role-title punctuation.";
+  }
+  return "";
 }
 
 function ScoreBar({ score }: { score: number }) {
@@ -302,11 +403,76 @@ function ResultList({ title, values }: { title: string; values: string[] }) {
       <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
       <ul className="mt-3 flex flex-wrap gap-2">
         {values.map((value) => (
-          <li key={value}>
-            <Badge>{value}</Badge>
+          <li className="max-w-full" key={value}>
+            <Badge className="max-w-full whitespace-normal break-words rounded-md p-2 text-left leading-6">
+              {value}
+            </Badge>
           </li>
         ))}
       </ul>
     </div>
   );
+}
+
+function SkillSignalPanel({
+  emptyText,
+  title,
+  values,
+}: {
+  emptyText: string;
+  title: string;
+  values: string[];
+}) {
+  return (
+    <div className="rounded-lg bg-slate-50 p-3.5 dark:bg-slate-950">
+      <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
+      {values.length ? (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {values.map((value) => (
+            <li className="max-w-full" key={value}>
+              <Badge className="max-w-full whitespace-normal break-words rounded-md p-2 text-left leading-6">
+                {value}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1.5 text-sm leading-6 text-emerald-700 dark:text-emerald-300">
+          {emptyText}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function extractSkillSignals(value: string) {
+  return value
+    .split(/[,;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function findMissingSkills(prioritySkills: string[], currentSkills: string[]) {
+  const current = currentSkills.map(normalizeSkill);
+  return prioritySkills.filter((skill) => {
+    const normalized = normalizeSkill(skill);
+    return !current.some(
+      (currentSkill) => currentSkill.includes(normalized) || normalized.includes(currentSkill),
+    );
+  });
+}
+
+function normalizeSkill(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9+#]+/g, " ").trim();
+}
+
+function formatRecordType(value: string | undefined) {
+  if (!value) {
+    return "";
+  }
+  return value
+    .split("_")
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }

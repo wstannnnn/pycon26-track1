@@ -2,6 +2,8 @@
 
 Monorepo for a career pathway and skills intelligence product.
 
+Data provenance and retrieval notes live in [`docs/data-provenance.md`](docs/data-provenance.md).
+
 ## Apps
 
 - `apps/backend`: FastAPI backend using Tortoise ORM and `uv`.

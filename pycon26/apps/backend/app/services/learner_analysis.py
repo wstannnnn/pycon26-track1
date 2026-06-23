@@ -39,6 +39,16 @@ def search_learner_evidence(
     role_query: str,
     client: VectorDbClient,
 ) -> list[VectorSearchHit]:
+    job_skill_matches = search_job_skill_evidence(text, role_query, client)
+    unique_skill_matches = client.search_unique_skills_text(text, limit=5)
+    return merge_matches(job_skill_matches, unique_skill_matches, limit=10)
+
+
+def search_job_skill_evidence(
+    text: str,
+    role_query: str,
+    client: VectorDbClient,
+) -> list[VectorSearchHit]:
     role_matches = client.find_role_records(role_query, limit=3) if role_query.strip() else []
     if role_matches:
         role = clean(role_matches[0].payload.get("role"))

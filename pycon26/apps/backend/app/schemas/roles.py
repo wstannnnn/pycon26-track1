@@ -17,8 +17,8 @@ class RoleOut(BaseModel):
 
 
 class CareerPathwayRequest(BaseModel):
-    current_role: str = Field(default="", max_length=120)
-    target_interest: str = Field(default="", max_length=120)
+    current_role: str = Field(min_length=1, max_length=120)
+    target_interest: str = Field(min_length=1, max_length=120)
 
 
 class CareerPathwayLevel(BaseModel):
@@ -34,6 +34,7 @@ class CareerPathwayEvidence(BaseModel):
     sector: str = ""
     track: str = ""
     description: str = ""
+    source: str = ""
     score: float
 
 

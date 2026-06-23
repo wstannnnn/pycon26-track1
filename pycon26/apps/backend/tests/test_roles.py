@@ -19,6 +19,7 @@ class FakeVectorDbClient:
                     "sector": "Information and Communications",
                     "track": "Data and Artificial Intelligence",
                     "description": "Analyse datasets and communicate insights.",
+                    "source": "skills_framework_joined_roles.jsonl",
                 },
             )
         ]
@@ -48,8 +49,22 @@ def test_create_career_pathway_from_chromadb_evidence() -> None:
     assert body["pathway_name"] == "Data Analyst pathway from junior to top management"
     assert body["evidence"][0]["role"] == "Data Analyst"
     assert body["evidence"][0]["sector"] == "Information and Communications"
+    assert body["evidence"][0]["source"] == "skills_framework_joined_roles.jsonl"
     assert body["levels"][0]["stage"] == "Junior"
     assert body["levels"][0]["title"] == "Junior Data Analyst"
     assert "Information and Communications" in body["levels"][0]["focus"]
     assert body["levels"][-1]["stage"] == "Top Management"
     assert body["levels"][-1]["title"] == "Executive leader for Data Analyst"
+
+
+def test_create_career_pathway_requires_current_role_and_target_interest() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/roles/pathway",
+            json={
+                "current_role": "",
+                "target_interest": "",
+            },
+        )
+
+    assert response.status_code == 422

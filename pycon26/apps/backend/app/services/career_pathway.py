@@ -126,6 +126,7 @@ def extract_role_evidence(matches: list[VectorSearchHit]) -> list[CareerPathwayE
             description=clean(match.payload.get("description"))
             or clean(match.payload.get("task"))
             or clean(match.payload.get("document")),
+            source=clean(match.payload.get("source")),
             score=match.score,
         )
 

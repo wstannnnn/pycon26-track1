@@ -13,6 +13,9 @@ from app.schemas.vectors import VectorPoint, VectorSearchHit
 EMBEDDING_DIMENSIONS = 64
 BATCH_SIZE = 500
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
+METADATA_KEYS_FIELD = "metadata_keys"
+UNIQUE_SKILLS_JSON = "processed/jobsandskills-skillsfuture-unique-skills-list.json"
+UNIQUE_SKILLS_WORKBOOK = "jobsandskills-skillsfuture-unique-skills-list.xlsx"
 
 
 class VectorDbClient:
@@ -20,11 +23,13 @@ class VectorDbClient:
         self,
         path: str = settings.vector_db_path,
         collection: str = settings.vector_db_collection,
+        unique_skills_collection: str = settings.vector_db_unique_skills_collection,
         data_dir: str = settings.skills_data_dir,
         auto_index: bool = settings.vector_db_auto_index,
     ) -> None:
         self.path = resolve_backend_path(path)
         self.collection_name = collection
+        self.unique_skills_collection_name = unique_skills_collection
         self.data_dir = resolve_backend_path(data_dir)
         self.auto_index = auto_index
         self._client = chromadb.PersistentClient(path=str(self.path))
@@ -33,20 +38,34 @@ class VectorDbClient:
     @property
     def collection(self) -> Collection:
         if self._collection is None:
-            self._collection = self._client.get_or_create_collection(
-                name=self.collection_name,
-                metadata={"description": "SkillsFuture skills, roles, tasks, and mappings"},
+            self._collection = self.get_collection(
+                self.collection_name,
+                description="SkillsFuture skills, roles, tasks, and mappings",
             )
         return self._collection
 
+    def get_collection(self, name: str, description: str) -> Collection:
+        return self._client.get_or_create_collection(
+            name=name,
+            metadata={"description": description},
+        )
+
     def upsert_points(self, points: list[VectorPoint]) -> dict[str, object]:
+        return self.upsert_points_to_collection(points, self.collection)
+
+    def upsert_points_to_collection(
+        self,
+        points: list[VectorPoint],
+        collection: Collection,
+    ) -> dict[str, object]:
         documents = [point.document or metadata_to_document(point.payload) for point in points]
-        self.collection.upsert(
+        collection.upsert(
             ids=[str(point.id) for point in points],
             embeddings=[point.vector or embed_text(doc) for point, doc in zip(points, documents)],
             documents=documents,
             metadatas=[sanitize_metadata(point.payload) for point in points],
         )
+        update_collection_metadata_keys(collection, points)
         return {"status": "ok", "result": {"upserted": len(points)}}
 
     def search_text(
@@ -58,8 +77,39 @@ class VectorDbClient:
         self.ensure_indexed()
         return self.search(vector=embed_text(text), limit=limit, where=where)
 
+    def search_unique_skills_text(
+        self,
+        text: str,
+        limit: int = 5,
+        where: dict[str, object] | None = None,
+    ) -> list[VectorSearchHit]:
+        collection = self.get_collection(
+            self.unique_skills_collection_name,
+            description="SkillsFuture unique skills list",
+        )
+        return self.search_collection(
+            collection=collection,
+            vector=embed_text(text),
+            limit=limit,
+            where=where,
+        )
+
     def search(
         self,
+        vector: list[float],
+        limit: int = 5,
+        where: dict[str, object] | None = None,
+    ) -> list[VectorSearchHit]:
+        return self.search_collection(
+            collection=self.collection,
+            vector=vector,
+            limit=limit,
+            where=where,
+        )
+
+    def search_collection(
+        self,
+        collection: Collection,
         vector: list[float],
         limit: int = 5,
         where: dict[str, object] | None = None,
@@ -73,7 +123,7 @@ class VectorDbClient:
         if where:
             query_kwargs["where"] = where
 
-        result = self.collection.query(
+        result = collection.query(
             **query_kwargs,
         )
         ids = result.get("ids", [[]])[0]
@@ -139,6 +189,37 @@ class VectorDbClient:
         for start in range(0, len(records), BATCH_SIZE):
             self.upsert_points(records[start : start + BATCH_SIZE])
         return len(records)
+
+    def index_unique_skills(self, path: Path | None = None) -> dict[str, object]:
+        unique_skills_path = path or find_unique_skills_path(self.data_dir)
+        unique_skills_collection = self.get_collection(
+            self.unique_skills_collection_name,
+            description="SkillsFuture unique skills list",
+        )
+        records = list(load_unique_skills(unique_skills_path))
+        for start in range(0, len(records), BATCH_SIZE):
+            self.upsert_points_to_collection(
+                records[start : start + BATCH_SIZE],
+                unique_skills_collection,
+            )
+        return {
+            "indexed": len(records),
+            "collection": {
+                "name": unique_skills_collection.name,
+                "metadata": unique_skills_collection.metadata or {},
+                "count": unique_skills_collection.count(),
+            },
+        }
+
+    def list_collections(self) -> list[dict[str, object]]:
+        collections = []
+        for collection in self._client.list_collections(limit=None, offset=None):
+            collections.append({
+                "name": collection.name,
+                "metadata": collection.metadata or {},
+                "count": collection.count(),
+            })
+        return collections
 
     def reset_collection(self) -> None:
         try:
@@ -260,29 +341,65 @@ def load_joined_role_records(path: Path):
 def load_unique_skills(path: Path):
     if not path.exists():
         return
+    if path.suffix.lower() == ".json":
+        yield from load_unique_skills_json(path)
+        return
+
     workbook = load_workbook(path, read_only=True, data_only=True)
     worksheet = workbook["Unique Skills List"]
     headers = read_headers(worksheet)
     for row_index, row in enumerate(worksheet.iter_rows(min_row=2, values_only=True), start=2):
         record = row_to_dict(headers, row)
-        title = clean(record.get("skill_title"))
-        description = clean(record.get("skill_description"))
-        if not title:
-            continue
-        document = f"Unique skill: {title}. Description: {description}"
-        yield VectorPoint(
-            id=f"unique-skill-{row_index}",
-            document=document,
-            payload={
-                "source": path.name,
-                "record_type": "unique_skill",
-                "skill": title,
-                "description": description,
-                "skill_type": clean(record.get("skill_type")),
-                "emerging_skill": clean(record.get("Emerging Skills")),
-                "casl_skill": clean(record.get("CASL Skills")),
-            },
-        )
+        point = unique_skill_to_vector_point(record, source=path.name, fallback_id=str(row_index))
+        if point:
+            yield point
+
+
+def load_unique_skills_json(path: Path):
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    records = payload.get("sheets", {}).get("Unique Skills List", [])
+    for row_index, record in enumerate(records, start=1):
+        point = unique_skill_to_vector_point(record, source=path.name, fallback_id=str(row_index))
+        if point:
+            yield point
+
+
+def unique_skill_to_vector_point(
+    record: dict[str, object],
+    source: str,
+    fallback_id: str,
+) -> VectorPoint | None:
+    title = clean(record.get("skill_title"))
+    description = clean(record.get("skill_description"))
+    if not title:
+        return None
+
+    document = (
+        f"Unique skill: {title}. "
+        f"Type: {clean(record.get('skill_type'))}. "
+        f"Description: {description}"
+    )
+    unique_id = sha256((title.casefold() or fallback_id).encode("utf-8")).hexdigest()[:16]
+    return VectorPoint(
+        id=f"unique-skill-{unique_id}",
+        document=document,
+        payload={
+            "source": source,
+            "record_type": "unique_skill",
+            "skill": title,
+            "description": description,
+            "skill_type": clean(record.get("skill_type")),
+            "emerging_skill": coerce_bool(record.get("Emerging Skills")),
+            "casl_skill": coerce_bool(record.get("CASL Skills")),
+        },
+    )
+
+
+def find_unique_skills_path(data_dir: Path) -> Path:
+    json_path = data_dir / UNIQUE_SKILLS_JSON
+    if json_path.exists():
+        return json_path
+    return data_dir / UNIQUE_SKILLS_WORKBOOK
 
 
 def load_framework_roles(path: Path):
@@ -430,6 +547,48 @@ def clean(value: object) -> str:
     return str(value).strip()
 
 
+def update_collection_metadata_keys(collection: Collection, points: list[VectorPoint]) -> None:
+    metadata_keys = metadata_keys_from_points(points)
+    if not metadata_keys:
+        return
+
+    existing_metadata = dict(collection.metadata or {})
+    existing_keys = parse_metadata_keys(existing_metadata.get(METADATA_KEYS_FIELD))
+    merged_keys = sorted({*existing_keys, *metadata_keys})
+    existing_metadata[METADATA_KEYS_FIELD] = json.dumps(merged_keys)
+    collection.modify(metadata=existing_metadata)
+
+
+def metadata_keys_from_points(points: list[VectorPoint]) -> list[str]:
+    keys: set[str] = set()
+    for point in points:
+        keys.update(sanitize_metadata(point.payload).keys())
+    return sorted(keys)
+
+
+def parse_metadata_keys(value: object) -> list[str]:
+    if not isinstance(value, str) or not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+
+    if not isinstance(parsed, list):
+        return []
+
+    return sorted(clean(item) for item in parsed if clean(item))
+
+
+def coerce_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().casefold() == "true"
+    return bool(value)
+
+
 def fuse_matches_by_name(matches: list[VectorSearchHit], limit: int) -> list[VectorSearchHit]:
     fused: dict[str, VectorSearchHit] = {}
     for match in sorted(matches, key=lambda item: item.score, reverse=True):
@@ -448,30 +607,38 @@ def fuse_matches_by_name(matches: list[VectorSearchHit], limit: int) -> list[Vec
             fused[key] = VectorSearchHit(id=match.id, score=match.score, payload=payload)
             continue
 
-        existing.payload["matched_ids"] = unique_clean_values(
-            [*existing.payload.get("matched_ids", []), match.id]
-        )
-        existing.payload["record_types"] = unique_clean_values(
-            [*existing.payload.get("record_types", []), match.payload.get("record_type")]
-        )
-        existing.payload["roles"] = unique_clean_values(
-            [*existing.payload.get("roles", []), match.payload.get("role")]
-        )
-        existing.payload["skills"] = unique_clean_values(
-            [*existing.payload.get("skills", []), match.payload.get("skill")]
-        )
-        existing.payload["tasks"] = unique_clean_values(
-            [*existing.payload.get("tasks", []), match.payload.get("task")]
-        )
-        existing.payload["descriptions"] = unique_clean_values(
-            [*existing.payload.get("descriptions", []), match.payload.get("description")]
-        )
-        existing.payload["documents"] = unique_clean_values(
-            [*existing.payload.get("documents", []), match.payload.get("document")]
-        )
-        existing.payload["sources"] = unique_clean_values(
-            [*existing.payload.get("sources", []), match.payload.get("source")]
-        )
+        existing.payload["matched_ids"] = unique_clean_values([
+            *existing.payload.get("matched_ids", []),
+            match.id,
+        ])
+        existing.payload["record_types"] = unique_clean_values([
+            *existing.payload.get("record_types", []),
+            match.payload.get("record_type"),
+        ])
+        existing.payload["roles"] = unique_clean_values([
+            *existing.payload.get("roles", []),
+            match.payload.get("role"),
+        ])
+        existing.payload["skills"] = unique_clean_values([
+            *existing.payload.get("skills", []),
+            match.payload.get("skill"),
+        ])
+        existing.payload["tasks"] = unique_clean_values([
+            *existing.payload.get("tasks", []),
+            match.payload.get("task"),
+        ])
+        existing.payload["descriptions"] = unique_clean_values([
+            *existing.payload.get("descriptions", []),
+            match.payload.get("description"),
+        ])
+        existing.payload["documents"] = unique_clean_values([
+            *existing.payload.get("documents", []),
+            match.payload.get("document"),
+        ])
+        existing.payload["sources"] = unique_clean_values([
+            *existing.payload.get("sources", []),
+            match.payload.get("source"),
+        ])
         existing.score = max(existing.score, match.score)
 
     return sorted(fused.values(), key=lambda match: match.score, reverse=True)[:limit]

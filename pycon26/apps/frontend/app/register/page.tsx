@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { authTitle, compactIntro, eyebrow, formInput, formLabel, primaryButton } from "../styles";
+import { ThemeToggle } from "../dashboard/theme-toggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -66,9 +67,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-8">
+    <main className="relative grid min-h-screen place-items-center px-4 py-8">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <section
-        className="w-[min(100%,460px)] rounded-lg border border-slate-200 bg-white p-6 md:p-8"
+        className="w-[min(100%,460px)] rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8"
         aria-labelledby="register-title"
       >
         <p className={eyebrow}>Start learning with direction</p>
@@ -119,7 +123,7 @@ export default function RegisterPage() {
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>
           <button
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-5 font-bold text-teal-900 transition hover:border-teal-700"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-5 font-bold text-slate-800 transition hover:border-slate-800 focus-visible:ring-4 focus-visible:ring-sky-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-sky-100 dark:hover:border-sky-400"
             type="button"
             onClick={handleBack}
           >
@@ -127,9 +131,9 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-slate-600">
+        <p className="mt-6 text-center text-slate-600 dark:text-slate-300">
           Already have an account?{" "}
-          <Link className="font-bold text-teal-900" href="/login">
+          <Link className="font-bold text-sky-700 dark:text-sky-200" href="/login">
             Log in
           </Link>
         </p>

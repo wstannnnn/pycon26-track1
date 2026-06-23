@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,14 @@ type PathwayLevel = {
 
 type CareerPathway = {
   pathway_name: string;
+  evidence?: Array<{
+    role: string;
+    sector?: string;
+    track?: string;
+    description?: string;
+    source?: string;
+    score: number;
+  }>;
   levels: PathwayLevel[];
 };
 
@@ -63,8 +72,12 @@ export function PathwayGenerator() {
   }
 
   return (
-    <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <Card className="h-fit">
+    <div
+      className={`mt-4 grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr] ${
+        pathway ? "items-start" : "items-stretch"
+      }`}
+    >
+      <Card className={pathway ? "h-fit" : "h-full"}>
         <CardHeader>
           <p className="text-sm font-bold uppercase text-sky-700 dark:text-sky-200">Pathway explorer</p>
           <CardTitle>Generate a role pathway.</CardTitle>
@@ -72,19 +85,37 @@ export function PathwayGenerator() {
         <CardContent>
           <form className="grid gap-3.5" onSubmit={handleSubmit}>
             <Label>
-              Current role
-              <Input name="current-role" placeholder="e.g. Customer Support Specialist" />
+              <span>
+                Current role <span className="text-red-600 dark:text-red-400">*</span>
+              </span>
+              <Input
+                required
+                aria-required="true"
+                name="current-role"
+                placeholder="e.g. Customer Support Specialist"
+              />
             </Label>
             <Label>
-              Target interest
-              <Input name="target-interest" placeholder="e.g. Data Analyst" />
+              <span>
+                Target interest <span className="text-red-600 dark:text-red-400">*</span>
+              </span>
+              <Input
+                required
+                aria-required="true"
+                name="target-interest"
+                placeholder="e.g. Data Analyst"
+              />
             </Label>
             {error ? (
               <p className="text-sm font-bold text-red-700" role="alert">
                 {error}
               </p>
             ) : null}
-            <Button className="w-full" disabled={isSubmitting} type="submit">
+            <Button
+              className="w-full dark:bg-sky-400 dark:text-white dark:hover:bg-sky-300 dark:focus-visible:ring-sky-300"
+              disabled={isSubmitting}
+              type="submit"
+            >
               {isSubmitting ? (
                 <>
                   <span
@@ -101,7 +132,7 @@ export function PathwayGenerator() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={pathway ? "" : "h-full"}>
         {pathway ? (
           <>
             <CardHeader>
@@ -147,11 +178,57 @@ export function PathwayGenerator() {
                   </li>
                 ))}
               </ol>
+              {pathway.evidence?.length ? (
+                <section className="mt-8 rounded-lg bg-slate-50 p-4 dark:bg-slate-950">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Pathway evidence
+                  </h3>
+                  <div className="mt-3 grid gap-3">
+                    {pathway.evidence.slice(0, 3).map((item) => (
+                      <article
+                        className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+                        key={`${item.role}-${item.score}`}
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white">{item.role}</p>
+                            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">
+                              {[item.sector, item.track].filter(Boolean).join(" / ") ||
+                                "SkillsFuture role evidence"}
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold uppercase text-sky-700 dark:text-sky-200">
+                            Match {item.score.toFixed(2)}
+                          </span>
+                        </div>
+                        {item.description ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+                            {item.description}
+                          </p>
+                        ) : null}
+                        {item.source ? (
+                          <p className="mt-2 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                            Source: {item.source}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </CardContent>
           </>
         ) : (
-          <CardContent className="grid min-h-72 place-items-center text-center">
+          <CardContent className="grid h-full place-items-center text-center">
             <div>
+              <Image
+                alt=""
+                aria-hidden="true"
+                className="mx-auto mb-4 h-32 w-32 object-contain"
+                height={128}
+                src="/images/pathway-empty-state.png"
+                width={128}
+              />
               <p className="text-sm font-bold uppercase text-sky-700 dark:text-sky-200">Awaiting pathway</p>
               <CardTitle className="mt-2">Your progression map will appear here.</CardTitle>
               <CardDescription className="mt-2 max-w-lg">
