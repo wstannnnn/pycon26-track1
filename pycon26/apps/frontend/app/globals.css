@@ -1,9 +1,21 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: Arial, Helvetica, sans-serif;
 }
 
 body {
-  background: #f7f8fa;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.08) 1px, transparent 0),
+    #f7f8fa;
+  background-size: 28px 28px;
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(125, 211, 252, 0.12) 1px, transparent 0),
+    #020617;
+  background-size: 28px 28px;
 }

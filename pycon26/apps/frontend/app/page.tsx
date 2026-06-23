@@ -24,7 +24,7 @@ export default function Home() {
         <p className={eyebrow}>Job and Skills Track</p>
         <h1 className={heroTitle}>Career direction, skill priorities, and next actions.</h1>
         <p className={intro}>
-          Build grounded pathway explorers, role-to-skill maps, skills-gap analysers,
+          Build grounded pathway explorers, role-to-skill maps, skills-gap analyzers,
           recommendation engines, learning roadmaps, and explainable dashboards.
         </p>
         <div className="flex flex-wrap gap-3">

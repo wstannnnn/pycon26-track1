@@ -5,10 +5,18 @@ import { FormEvent } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { setAuthCookie, setAuthUser } from "@/lib/auth";
+
 import { authTitle, compactIntro, eyebrow, formInput, formLabel, primaryButton } from "../styles";
-import { setAuthCookie } from "@/lib/auth";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+type LoginResponse = {
+  user: {
+    email: string;
+    full_name?: string;
+  };
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,7 +44,15 @@ export default function LoginPage() {
         throw new Error("Invalid email or password.");
       }
 
-      setAuthCookie(formData.get("remember") === "on");
+      const data = (await response.json()) as LoginResponse;
+
+      const remember = formData.get("remember") === "on";
+
+      setAuthCookie(remember);
+      setAuthUser({
+        email: data.user.email,
+        fullName: data.user.full_name,
+      }, remember);
       router.push("/dashboard");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to log in.");

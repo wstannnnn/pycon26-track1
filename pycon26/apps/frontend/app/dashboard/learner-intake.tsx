@@ -78,7 +78,7 @@ export function LearnerIntake() {
       });
 
       if (!response.ok) {
-        throw new Error("Unable to analyse this profile yet.");
+        throw new Error("Unable to analyze this profile yet.");
       }
 
       setAnalysis((await response.json()) as LearnerAnalysis);
@@ -124,10 +124,10 @@ export function LearnerIntake() {
   }
 
   return (
-    <section className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <Card>
+    <section className="mt-8 grid items-start gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
+      <Card className="h-fit">
         <CardHeader>
-          <p className="text-sm font-bold uppercase text-teal-900">Profile input</p>
+          <p className="text-sm font-bold uppercase text-sky-700 dark:text-sky-200">Profile input</p>
           <CardTitle>Share your skills or resume.</CardTitle>
           <CardDescription>
             Upload a PDF resume or enter your profile details to generate role and skill guidance.
@@ -140,16 +140,18 @@ export function LearnerIntake() {
               Upload resume PDF
               <Input
                 accept="application/pdf"
-                className="flex cursor-pointer items-center py-2 file:mr-3 file:min-h-8 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-slate-700 file:transition hover:file:bg-slate-200 focus:file:bg-slate-200"
+                className="flex cursor-pointer items-center py-2 file:mr-3 file:min-h-8 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-slate-700 file:transition hover:file:bg-slate-200 focus:file:bg-slate-200 dark:file:bg-slate-800 dark:file:text-slate-100 dark:hover:file:bg-slate-700"
                 disabled={isUploadingResume}
                 type="file"
                 onChange={(event) => handleResumeUpload(event.target.files?.[0])}
               />
             </Label>
             {isUploadingResume ? (
-              <p className="text-sm font-bold text-teal-900">Extracting resume profile...</p>
+              <p className="text-sm font-bold text-sky-700 dark:text-sky-200">Extracting resume profile...</p>
             ) : null}
-            {uploadStatus ? <p className="text-sm text-slate-600">{uploadStatus}</p> : null}
+            {uploadStatus ? (
+              <p className="text-sm text-slate-600 dark:text-slate-400">{uploadStatus}</p>
+            ) : null}
             <Label>
               Current role
               <Input
@@ -191,7 +193,7 @@ export function LearnerIntake() {
             {error ? <p className="text-sm font-bold text-red-700">{error}</p> : null}
 
             <Button className="w-full" disabled={isSubmitting || isUploadingResume} type="submit">
-              {isSubmitting ? "Analysing..." : "Analyse profile"}
+              {isSubmitting ? "Analyzing..." : "Analyze profile"}
             </Button>
           </form>
         </CardContent>
@@ -199,48 +201,67 @@ export function LearnerIntake() {
 
       <Card>
         {analysis ? (
-          <CardContent className="grid gap-6">
-            <ResultList title="Where can I go next?" values={analysis.recommendation.next_roles} />
-            <ResultList
-              title="What skills matter most?"
-              values={analysis.recommendation.priority_skills}
-            />
-            <ResultList
-              title="What should I do today?"
-              values={analysis.recommendation.actions_today}
-            />
-
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Similarity evidence</h3>
-              <div className="mt-3 grid gap-3">
-                {analysis.similar_matches.map((match) => (
-                  <Card className="p-3" key={match.id}>
-                    <p className="font-bold text-slate-900">
-                      {match.payload.role ?? match.payload.skill ?? match.id}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      {evidenceDescription(match.payload)}
-                    </p>
-                    <p className="mt-2 text-xs font-bold uppercase text-teal-900">
-                      Score {match.score.toFixed(2)}
-                    </p>
-                  </Card>
-                ))}
+          <>
+            <CardHeader>
+              <p className="text-sm font-bold uppercase text-sky-700 dark:text-sky-200">
+                Profile analysis
+              </p>
+              <CardTitle>Recommended next steps.</CardTitle>
+              <CardDescription>
+                Review the suggested roles, priority skills, and actions generated from your
+                profile.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6">
+              <div className="grid gap-4 xl:grid-cols-3">
+                <ResultList
+                  title="Where can I go next?"
+                  values={analysis.recommendation.next_roles}
+                />
+                <ResultList
+                  title="What skills matter most?"
+                  values={analysis.recommendation.priority_skills}
+                />
+                <ResultList
+                  title="What should I do today?"
+                  values={analysis.recommendation.actions_today}
+                />
               </div>
-            </div>
 
-            <CardDescription className="rounded-lg bg-slate-50 p-3">
-              {analysis.recommendation.explanation}
-            </CardDescription>
-          </CardContent>
+              <CardDescription className="rounded-lg bg-slate-50 p-4 dark:bg-slate-950">
+                {analysis.recommendation.explanation}
+              </CardDescription>
+
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Similarity evidence
+                </h3>
+                <div className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+                  {analysis.similar_matches.map((match) => (
+                    <div className="p-4" key={match.id}>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <p className="font-bold text-slate-900 dark:text-white">
+                          {match.payload.role ?? match.payload.skill ?? match.id}
+                        </p>
+                        <ScoreBar score={match.score} />
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+                        {evidenceDescription(match.payload)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </>
         ) : (
           <CardContent className="grid min-h-96 place-items-center text-center">
             <div>
-              <p className="text-sm font-bold uppercase text-teal-900">Awaiting profile</p>
+              <p className="text-sm font-bold uppercase text-sky-700 dark:text-sky-200">Awaiting profile</p>
               <CardTitle className="mt-2">Your roadmap will appear here.</CardTitle>
               <CardDescription className="mt-2 max-w-lg">
-                Submit skills or resume text to see mock role paths, skill priorities, daily
-                actions, and similarity evidence.
+                Upload a resume PDF or fill in your role, target interest, skills, and resume text
+                to generate skill priorities, next actions, and similarity evidence.
               </CardDescription>
             </div>
           </CardContent>
@@ -254,10 +275,31 @@ function evidenceDescription(payload: LearnerAnalysis["similar_matches"][number]
   return payload.description || payload.document || "No description available for this match.";
 }
 
+function ScoreBar({ score }: { score: number }) {
+  const percent = Math.max(0, Math.min(100, Math.round(score * 100)));
+
+  return (
+    <div className="w-full shrink-0 sm:w-36">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-bold uppercase text-sky-700 dark:text-sky-200">Match</span>
+        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+          {score.toFixed(2)}
+        </span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+        <div
+          className="h-full rounded-full bg-slate-800 dark:bg-sky-400"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ResultList({ title, values }: { title: string; values: string[] }) {
   return (
-    <div>
-      <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+    <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-950">
+      <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
       <ul className="mt-3 flex flex-wrap gap-2">
         {values.map((value) => (
           <li key={value}>

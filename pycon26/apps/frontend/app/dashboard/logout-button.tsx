@@ -2,19 +2,22 @@
 
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
-import { clearAuthCookie } from "@/lib/auth";
+import { Button, type ButtonProps } from "@/components/ui/button";
+import { clearAuthCookie, clearAuthUser } from "@/lib/auth";
 
-export function LogoutButton() {
+type LogoutButtonProps = Pick<ButtonProps, "className" | "size" | "variant">;
+
+export function LogoutButton({ className, size, variant = "outline" }: LogoutButtonProps) {
   const router = useRouter();
 
   function handleLogout() {
     clearAuthCookie();
+    clearAuthUser();
     router.push("/login");
   }
 
   return (
-    <Button type="button" variant="outline" onClick={handleLogout}>
+    <Button className={className} size={size} type="button" variant={variant} onClick={handleLogout}>
       Logout
     </Button>
   );
