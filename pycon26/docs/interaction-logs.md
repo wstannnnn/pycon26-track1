@@ -32,26 +32,23 @@ Codex assisted by:
 
 ## Prompt And Requirement Trail
 
-Key user prompts included:
+The table below records the main session workflow, the prompt-driven requirement behind each stage, and where the resulting evidence lives in the repository.
 
-- Write commit messages for recent changes.
-- Create C1 and C2 architecture diagrams.
-- Create UML diagrams.
-- Document how to bring up the system.
-- Explain how to create and index the `unique_skills` collection.
-- Create a Swagger/OpenAPI file.
-- Document how to open Swagger.
-- Add a parent-folder summary and folder structure.
-- Capture snapshots from login through pathway exploration and profile analysis.
-- Keep the Playwright capture script.
-- Clean temporary Playwright installs and caches.
-- Embed snapshots in the root README.
-- Create YouTube-ready demo recordings, including:
-  - Explore Pathways.
-  - Manual profile analysis.
-  - PDF upload using `functionalsample.pdf`.
-  - Target interest `accountant`.
-  - Slow scrolling to the bottom of results.
+| Session workflow stage | Prompt-driven requirement | Resulting evidence |
+| --- | --- | --- |
+| Scope and repository review | Understand the Job and Skills Track app, existing backend/frontend structure, and submission expectations before adding artifacts. | `README.md`, `apps/backend/`, `apps/frontend/` |
+| Product and data grounding | Keep recommendations grounded in SkillsFuture Interactive Skills Framework data rather than generic LLM output. | `docs/data-provenance.md`, `apps/backend/scripts/join_skills_framework_workbook.py` |
+| ChromaDB indexing workflow | Explain how role records, role-skill records, key tasks, and the separate `unique_skills` collection are created and indexed. | `docs/data-provenance.md`, `docs/bring-up.md`, `apps/backend/app/clients/vector_db.py` |
+| Local LLM workflow | Document the local llama.cpp runtime, OpenAI-compatible backend settings, and model configuration used by learner analysis. | `docs/bring-up.md`, `apps/backend/app/clients/local_llm.py`, `apps/backend/.env.example` |
+| Backend API evidence | Preserve the API contract and explain how reviewers can open Swagger locally. | `docs/openapi.json`, `docs/bring-up.md`, `apps/backend/app/main.py` |
+| Architecture documentation | Create C1/C2 architecture diagrams and UML diagrams so reviewers can understand system boundaries and request flow. | `docs/architecture-c4.md`, `docs/uml-diagrams.md` |
+| Local bring-up workflow | Provide reproducible commands for backend, frontend, ChromaDB indexing, local LLM startup, health checks, and Swagger access. | `docs/bring-up.md`, `README.md` |
+| Main user journey | Capture the implemented UI flow from landing and login through dashboard pathway exploration and learner profile analysis. | `docs/snapshots/`, `docs/snapshots/README.md` |
+| Repeatable capture workflow | Keep the Playwright script used to regenerate screenshots from the local app. | `docs/snapshots/capture-flow.mjs` |
+| Demo recording workflow | Produce YouTube-ready walkthrough videos covering Explore Pathways, manual profile analysis, PDF upload with `functionalsample.pdf`, target interest `accountant`, and slow scrolling through results. | `docs/videos/skillcompass-full-demo-flow.mp4`, `docs/videos/skillcompass-flow.webm` |
+| Root submission summary | Add a reviewer-facing parent-folder summary with folder structure, important documents, snapshots, and quick-start commands. | `../README.md`, `README.md` |
+| Cleanup and handoff | Remove temporary local recording/install artifacts and preserve only useful submission assets. | Working tree cleanup after recording, `docs/videos/`, `docs/snapshots/` |
+| Commit-message support | Summarize recent changes in a concise form suitable for version-control history. | Git history and this documentation trail. |
 
 ## Human-Human Collaboration
 
