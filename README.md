@@ -71,7 +71,7 @@ Other generated docs/artifacts:
 
 - [Swagger/OpenAPI spec](pycon26/docs/openapi.json): generated backend API spec.
 - [UI snapshots](pycon26/docs/snapshots/): captured PNG screenshots for the primary user flow.
-- [UI flow recording](pycon26/docs/videos/skillcompass-flow.webm): Playwright-recorded walkthrough from landing page to profile analysis result.
+- [UI flow recording](pycon26/docs/videos/skillcompass-full-demo-flow.mp4): YouTube-ready MP4 walkthrough covering Explore Pathways, manual profile analysis, PDF upload with `accountant` target interest, and slow full-result scrolling.
 
 ## UI Flow Snapshots
 
