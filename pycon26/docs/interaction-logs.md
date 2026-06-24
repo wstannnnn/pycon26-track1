@@ -52,13 +52,20 @@ The table below records the main session workflow, the prompt-driven requirement
 
 ## Human-Human Collaboration
 
-Human-human stakeholder discussions are not currently captured in this repository.
+Human-human collaboration focused on shaping the product experience, dashboard outcome, and system design for the Job and Skills Track demo.
 
-Known human contribution in this repo:
+- UI/UX design discussions defined the learner journey from landing page to login, authenticated dashboard, pathway exploration, and profile analysis.
+- The user journey was shaped around a practical learner workflow: sign in, open the Pathway Hub, explore a current-to-target career path, analyze a learner profile, upload or provide resume/profile evidence, and review recommended roles, priority skills, learning actions, and similarity evidence.
+- Dashboard outcome discussions emphasized a clear career-planning result: role recommendations grounded in SkillsFuture evidence, visible match context, skill gaps, suggested next actions, and source-backed retrieval evidence.
+- System design discussions covered the separation between the Next.js frontend, FastAPI backend, SQLite persistence, ChromaDB vector store, SkillsFuture data files, and local LLM runtime.
+- Architecture conversations also covered how retrieval should happen before LLM generation, so the dashboard recommendations remain grounded in indexed SkillsFuture job roles, key tasks, role-skill records, and unique skills.
 
-- The project owner/user supplied product direction, local environment details, data-source requirements, LLM runtime configuration, and the sample PDF used in the recorded workflow.
+The resulting artifacts connect those discussions to implementation evidence:
 
-If additional team or stakeholder discussions occurred outside this repository, add meeting notes, chat exports, design-review notes, or decision logs here or in a linked folder.
+- UI journey evidence: `docs/snapshots/`, `docs/videos/skillcompass-full-demo-flow.mp4`
+- Dashboard implementation: `apps/frontend/app/dashboard/`
+- System design evidence: `docs/architecture-c4.md`, `docs/uml-diagrams.md`
+- Data and retrieval design: `docs/data-provenance.md`, `docs/bring-up.md`
 
 ## Related Evidence
 
