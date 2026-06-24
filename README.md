@@ -24,6 +24,7 @@ The dashboard outcome is designed to show practical career-planning output: reco
 
 ```text
 pycon26-track1/
+├── Makefile
 ├── README.md
 └── pycon26/
     ├── README.md
@@ -121,6 +122,16 @@ The primary user flow is captured under `pycon26/docs/snapshots/`:
 ![Profile analysis result](pycon26/docs/snapshots/08-profile-analysis-result.png)
 
 ## Quick Start
+
+Make targets are available from the repository root:
+
+```sh
+make install
+make embedding-model
+make join-data
+make backend
+make frontend
+```
 
 Backend:
 

@@ -2,6 +2,21 @@
 
 This guide starts the Job and Skills Track stack from local SkillsFuture data, ChromaDB indexing, a local llama.cpp LLM server, the FastAPI backend, and the Next.js frontend.
 
+## Makefile Quick Path
+
+From the repository root, the main bring-up commands are available as Make targets:
+
+```sh
+make embedding-model
+make join-data
+make backend
+make frontend
+make index
+make health
+```
+
+Run `make help` to list all available targets. Use separate terminal windows for long-running services such as `make backend`, `make frontend`, and `make llm`.
+
 ## 1. Download SkillsFuture Data
 
 Download the SkillsFuture Skills Framework source files from:

@@ -29,6 +29,16 @@ The dashboard is designed around evidence-first career planning. SkillsFuture re
 
 ## Local Development
 
+From the repository root, common bring-up commands are available through `make`:
+
+```sh
+make embedding-model
+make join-data
+make backend
+make frontend
+make index
+```
+
 Backend:
 
 ```sh
