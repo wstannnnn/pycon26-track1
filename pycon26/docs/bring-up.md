@@ -135,8 +135,20 @@ VECTOR_DB_COLLECTION=job_skills
 VECTOR_DB_UNIQUE_SKILLS_COLLECTION=unique_skills
 VECTOR_DB_HNSW_SPACE=cosine
 VECTOR_DB_AUTO_INDEX=true
+VECTOR_DB_EMBEDDING_PROVIDER=ollama
+VECTOR_DB_EMBEDDING_MODEL=nomic-embed-text
+VECTOR_DB_EMBEDDING_URL=http://localhost:11434
+VECTOR_DB_EMBEDDING_TIMEOUT=60
 SKILLS_DATA_DIR=../../data
 ```
+
+If `VECTOR_DB_EMBEDDING_PROVIDER=ollama`, pull the embedding model before indexing:
+
+```sh
+ollama pull nomic-embed-text
+```
+
+Changing the embedding provider or model changes vector dimensions, so rebuild both ChromaDB collections after changing those settings.
 
 ## 5. Run Local LLM With llama.cpp
 
@@ -264,3 +276,15 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 6. Confirm that the response includes matched evidence, priority skills, actions today, and the LLM provider.
 
 If the target interest is not found in indexed job roles, the backend returns `404` so the frontend can show a clear error.
+
+## 10. Expected Dashboard Outcome
+
+The intended UI/UX journey is login to dashboard to analysis. A successful run should let the learner:
+
+1. Sign in and reach the Pathway Hub.
+2. Explore a pathway from a current role to a target role.
+3. Submit learner profile details or resume/PDF-derived evidence.
+4. Review recommended next roles, priority skills, suggested actions, and the explanation.
+5. Inspect similarity evidence showing the SkillsFuture records used to ground the recommendation.
+
+This reflects the system-design decision to retrieve SkillsFuture evidence first, then use the local LLM to turn that evidence into a readable dashboard result.

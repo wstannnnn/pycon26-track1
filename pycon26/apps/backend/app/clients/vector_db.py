@@ -1,9 +1,13 @@
 import json
+import logging
+import time
 from hashlib import sha256
 from pathlib import Path
 
 import chromadb
+import httpx
 from chromadb.api.models.Collection import Collection
+from chromadb.api.types import Documents, EmbeddingFunction
 from openpyxl import load_workbook
 
 from app.config import settings
@@ -16,6 +20,113 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 METADATA_KEYS_FIELD = "metadata_keys"
 UNIQUE_SKILLS_JSON = "processed/jobsandskills-skillsfuture-unique-skills-list.json"
 UNIQUE_SKILLS_WORKBOOK = "jobsandskills-skillsfuture-unique-skills-list.xlsx"
+logger = logging.getLogger("job_skills.vector_db")
+
+
+class LocalHashEmbeddingFunction(EmbeddingFunction[Documents]):
+    def __init__(self, dimensions: int = EMBEDDING_DIMENSIONS) -> None:
+        self.dimensions = dimensions
+
+    def __call__(self, input: Documents) -> list[list[float]]:
+        return [embed_text(text, dimensions=self.dimensions) for text in input]
+
+    @staticmethod
+    def name() -> str:
+        return "local_hash"
+
+    def get_config(self) -> dict[str, int]:
+        return {"dimensions": self.dimensions}
+
+    @staticmethod
+    def build_from_config(config: dict[str, object]) -> "LocalHashEmbeddingFunction":
+        dimensions = config.get("dimensions", EMBEDDING_DIMENSIONS)
+        return LocalHashEmbeddingFunction(dimensions=int(dimensions))
+
+
+class OllamaEmbeddingFunction(EmbeddingFunction[Documents]):
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        timeout: float = 60.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.transport = transport
+
+    def __call__(self, input: Documents) -> list[list[float]]:
+        documents = list(input)
+        if not documents:
+            return []
+
+        with httpx.Client(
+            base_url=self.base_url,
+            timeout=self.timeout,
+            transport=self.transport,
+        ) as client:
+            response = client.post(
+                "/api/embed",
+                json={"model": self.model, "input": documents},
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+        embeddings = payload.get("embeddings")
+        if isinstance(embeddings, list):
+            return [coerce_embedding(embedding) for embedding in embeddings]
+
+        legacy_embedding = payload.get("embedding")
+        if isinstance(legacy_embedding, list):
+            return [coerce_embedding(legacy_embedding)]
+
+        raise ValueError("Ollama embedding response did not include embeddings.")
+
+    @staticmethod
+    def name() -> str:
+        return "ollama"
+
+    def get_config(self) -> dict[str, str | float]:
+        return {
+            "model": self.model,
+            "base_url": self.base_url,
+            "timeout": self.timeout,
+        }
+
+    @staticmethod
+    def build_from_config(config: dict[str, object]) -> "OllamaEmbeddingFunction":
+        return OllamaEmbeddingFunction(
+            model=str(config.get("model") or settings.vector_db_embedding_model),
+            base_url=str(config.get("base_url") or settings.vector_db_embedding_url),
+            timeout=float(config.get("timeout") or settings.vector_db_embedding_timeout),
+        )
+
+
+def build_embedding_function(
+    provider: str,
+    model: str,
+    base_url: str,
+    timeout: float,
+    transport: httpx.BaseTransport | None = None,
+) -> EmbeddingFunction[Documents]:
+    normalized_provider = provider.strip().casefold()
+    if normalized_provider in {"local-hash", "local_hash", "hash"}:
+        return LocalHashEmbeddingFunction()
+    if normalized_provider == "ollama":
+        return OllamaEmbeddingFunction(
+            model=model,
+            base_url=base_url,
+            timeout=timeout,
+            transport=transport,
+        )
+    raise ValueError(f"Unsupported vector DB embedding provider: {provider}")
+
+
+def coerce_embedding(values: object) -> list[float]:
+    if not isinstance(values, list):
+        raise ValueError("Embedding must be a list of numbers.")
+    return [float(value) for value in values]
 
 
 class VectorDbClient:
@@ -27,6 +138,11 @@ class VectorDbClient:
         hnsw_space: str = settings.vector_db_hnsw_space,
         data_dir: str = settings.skills_data_dir,
         auto_index: bool = settings.vector_db_auto_index,
+        embedding_provider: str = settings.vector_db_embedding_provider,
+        embedding_model: str = settings.vector_db_embedding_model,
+        embedding_base_url: str = settings.vector_db_embedding_url,
+        embedding_timeout: float = settings.vector_db_embedding_timeout,
+        embedding_transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.path = resolve_backend_path(path)
         self.collection_name = collection
@@ -34,6 +150,13 @@ class VectorDbClient:
         self.hnsw_space = hnsw_space
         self.data_dir = resolve_backend_path(data_dir)
         self.auto_index = auto_index
+        self.embedding_function = build_embedding_function(
+            provider=embedding_provider,
+            model=embedding_model,
+            base_url=embedding_base_url,
+            timeout=embedding_timeout,
+            transport=embedding_transport,
+        )
         self._client = chromadb.PersistentClient(path=str(self.path))
         self._collection: Collection | None = None
 
@@ -51,6 +174,7 @@ class VectorDbClient:
             name=name,
             configuration={"hnsw": {"space": self.hnsw_space}},
             metadata={"description": description},
+            embedding_function=self.embedding_function,
         )
 
     def upsert_points(self, points: list[VectorPoint]) -> dict[str, object]:
@@ -62,14 +186,30 @@ class VectorDbClient:
         collection: Collection,
     ) -> dict[str, object]:
         documents = [point.document or metadata_to_document(point.payload) for point in points]
-        collection.upsert(
-            ids=[str(point.id) for point in points],
-            embeddings=[point.vector or embed_text(doc) for point, doc in zip(points, documents)],
-            documents=documents,
-            metadatas=[sanitize_metadata(point.payload) for point in points],
-        )
+        upsert_kwargs = {
+            "ids": [str(point.id) for point in points],
+            "documents": documents,
+            "metadatas": [sanitize_metadata(point.payload) for point in points],
+        }
+        if any(point.vector is not None for point in points):
+            upsert_kwargs["embeddings"] = self.embeddings_for_points(points, documents)
+        collection.upsert(**upsert_kwargs)
         update_collection_metadata_keys(collection, points)
         return {"status": "ok", "result": {"upserted": len(points)}}
+
+    def embeddings_for_points(
+        self,
+        points: list[VectorPoint],
+        documents: list[str],
+    ) -> list[list[float]]:
+        missing_documents = [
+            document for point, document in zip(points, documents) if point.vector is None
+        ]
+        generated_embeddings = iter(self.embedding_function(missing_documents))
+        return [
+            point.vector if point.vector is not None else next(generated_embeddings)
+            for point in points
+        ]
 
     def search_text(
         self,
@@ -80,7 +220,12 @@ class VectorDbClient:
     ) -> list[VectorSearchHit]:
         if auto_index:
             self.ensure_indexed()
-        return self.search(vector=embed_text(text), limit=limit, where=where)
+        return self.search_collection_text(
+            collection=self.collection,
+            text=text,
+            limit=limit,
+            where=where,
+        )
 
     def search_unique_skills_text(
         self,
@@ -92,9 +237,9 @@ class VectorDbClient:
             self.unique_skills_collection_name,
             description="SkillsFuture unique skills list",
         )
-        return self.search_collection(
+        return self.search_collection_text(
             collection=collection,
-            vector=embed_text(text),
+            text=text,
             limit=limit,
             where=where,
         )
@@ -112,6 +257,20 @@ class VectorDbClient:
             where=where,
         )
 
+    def search_collection_text(
+        self,
+        collection: Collection,
+        text: str,
+        limit: int = 5,
+        where: dict[str, object] | None = None,
+    ) -> list[VectorSearchHit]:
+        return self.query_collection(
+            collection=collection,
+            limit=limit,
+            where=where,
+            query_texts=[text],
+        )
+
     def search_collection(
         self,
         collection: Collection,
@@ -119,18 +278,34 @@ class VectorDbClient:
         limit: int = 5,
         where: dict[str, object] | None = None,
     ) -> list[VectorSearchHit]:
+        return self.query_collection(
+            collection=collection,
+            limit=limit,
+            where=where,
+            query_embeddings=[vector],
+        )
+
+    def query_collection(
+        self,
+        collection: Collection,
+        limit: int,
+        where: dict[str, object] | None = None,
+        query_texts: list[str] | None = None,
+        query_embeddings: list[list[float]] | None = None,
+    ) -> list[VectorSearchHit]:
         query_limit = max(limit * 4, limit)
         query_kwargs = {
-            "query_embeddings": [vector],
             "n_results": query_limit,
             "include": ["documents", "metadatas", "distances"],
         }
+        if query_texts is not None:
+            query_kwargs["query_texts"] = query_texts
+        if query_embeddings is not None:
+            query_kwargs["query_embeddings"] = query_embeddings
         if where:
             query_kwargs["where"] = where
 
-        result = collection.query(
-            **query_kwargs,
-        )
+        result = collection.query(**query_kwargs)
         ids = result.get("ids", [[]])[0]
         distances = result.get("distances", [[]])[0]
         metadatas = result.get("metadatas", [[]])[0]
@@ -198,7 +373,18 @@ class VectorDbClient:
         self.reset_collection()
         records = list(load_skill_records(data_dir))
         for start in range(0, len(records), BATCH_SIZE):
-            self.upsert_points(records[start : start + BATCH_SIZE])
+            batch = records[start : start + BATCH_SIZE]
+            batch_start = time.perf_counter()
+            self.upsert_points(batch)
+            logger.info(
+                "vector_index_batch collection=%s batch=%s/%s records=%s document_chars=%s duration_ms=%.2f",
+                self.collection_name,
+                (start // BATCH_SIZE) + 1,
+                ((len(records) - 1) // BATCH_SIZE) + 1 if records else 0,
+                len(batch),
+                sum(len(record.document or "") for record in batch),
+                (time.perf_counter() - batch_start) * 1000,
+            )
         return len(records)
 
     def index_unique_skills(self, path: Path | None = None) -> dict[str, object]:
@@ -210,9 +396,20 @@ class VectorDbClient:
         )
         records = list(load_unique_skills(unique_skills_path))
         for start in range(0, len(records), BATCH_SIZE):
+            batch = records[start : start + BATCH_SIZE]
+            batch_start = time.perf_counter()
             self.upsert_points_to_collection(
-                records[start : start + BATCH_SIZE],
+                batch,
                 unique_skills_collection,
+            )
+            logger.info(
+                "vector_index_batch collection=%s batch=%s/%s records=%s document_chars=%s duration_ms=%.2f",
+                unique_skills_collection.name,
+                (start // BATCH_SIZE) + 1,
+                ((len(records) - 1) // BATCH_SIZE) + 1 if records else 0,
+                len(batch),
+                sum(len(record.document or "") for record in batch),
+                (time.perf_counter() - batch_start) * 1000,
             )
         return {
             "indexed": len(records),
@@ -273,6 +470,23 @@ def load_skill_records(data_dir: Path):
     )
 
 
+def role_to_document(
+    role: str,
+    sector: str,
+    track: str,
+    description: str,
+    performance_expectation: str,
+) -> str:
+    parts = [
+        f"Role: {role}",
+        f"Sector: {sector}" if sector else "",
+        f"Track: {track}" if track else "",
+        f"Description: {description}" if description else "",
+        f"Performance expectation: {performance_expectation}" if performance_expectation else "",
+    ]
+    return ". ".join(part for part in parts if part)
+
+
 def load_joined_role_records(path: Path):
     if not path.exists():
         return
@@ -290,11 +504,17 @@ def load_joined_role_records(path: Path):
             sector = clean(record.get("sector"))
             track = clean(record.get("track"))
             description = clean(record.get("job_role_description"))
+            performance_expectation = clean(record.get("performance_expectation"))
             source = path.name
             yield VectorPoint(
                 id=f"joined-role-{row_index}",
-                document=clean(record.get("concatenated_description"))
-                or f"Role: {role}. Sector: {sector}. Track: {track}. Description: {description}",
+                document=role_to_document(
+                    role=role,
+                    sector=sector,
+                    track=track,
+                    description=description,
+                    performance_expectation=performance_expectation,
+                ),
                 payload={
                     "source": source,
                     "record_type": "job_role",
@@ -302,7 +522,7 @@ def load_joined_role_records(path: Path):
                     "sector": sector,
                     "track": track,
                     "description": description,
-                    "performance_expectation": clean(record.get("performance_expectation")),
+                    "performance_expectation": performance_expectation,
                 },
             )
 

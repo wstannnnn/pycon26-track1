@@ -1,7 +1,14 @@
 import json
 from pathlib import Path
 
-from app.clients.vector_db import VectorDbClient, load_skill_records, load_unique_skills
+import httpx
+
+from app.clients.vector_db import (
+    OllamaEmbeddingFunction,
+    VectorDbClient,
+    load_skill_records,
+    load_unique_skills,
+)
 from app.schemas.vectors import VectorPoint
 
 
@@ -11,6 +18,7 @@ def test_upsert_and_search_points_with_chromadb(tmp_path: Path) -> None:
         collection="skills_test",
         data_dir=str(tmp_path / "data"),
         auto_index=False,
+        embedding_provider="local-hash",
     )
 
     response = client.upsert_points(
@@ -43,6 +51,7 @@ def test_collections_use_cosine_hnsw_space(tmp_path: Path) -> None:
         unique_skills_collection="cosine_unique_skills_test",
         data_dir=str(tmp_path / "data"),
         auto_index=False,
+        embedding_provider="local-hash",
     )
 
     unique_collection = client.get_collection(
@@ -60,6 +69,7 @@ def test_cosine_search_scores_exact_match_as_one(tmp_path: Path) -> None:
         collection="cosine_score_test",
         data_dir=str(tmp_path / "data"),
         auto_index=False,
+        embedding_provider="local-hash",
     )
     client.upsert_points(
         [
@@ -82,6 +92,7 @@ def test_find_role_records_matches_role_column(tmp_path: Path) -> None:
         collection="roles_test",
         data_dir=str(tmp_path / "data"),
         auto_index=False,
+        embedding_provider="local-hash",
     )
     client.upsert_points(
         [
@@ -118,6 +129,7 @@ def test_search_text_prefers_skill_title_for_role_skill_matches(tmp_path: Path) 
         collection="fused_results_test",
         data_dir=str(tmp_path / "data"),
         auto_index=False,
+        embedding_provider="local-hash",
     )
     client.upsert_points(
         [
@@ -237,6 +249,7 @@ def test_index_unique_skills_uses_processed_json(tmp_path: Path) -> None:
         unique_skills_collection="unique_skills_test",
         data_dir=str(data_dir),
         auto_index=False,
+        embedding_provider="local-hash",
     )
 
     result = client.index_unique_skills()
@@ -264,6 +277,34 @@ def test_index_unique_skills_uses_processed_json(tmp_path: Path) -> None:
     assert stored_records["metadatas"][0]["record_type"] == "unique_skill"
     assert stored_records["metadatas"][0]["skill"] == "Data Analytics"
     assert stored_records["metadatas"][0]["casl_skill"] is True
+
+
+def test_ollama_embedding_function_calls_embed_api() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/embed"
+        payload = json.loads(request.content)
+        assert payload == {
+            "model": "nomic-embed-text",
+            "input": ["SQL dashboard", "Python analytics"],
+        }
+        return httpx.Response(
+            200,
+            json={"embeddings": [[1.0, 0.0], [0.0, 1.0]]},
+        )
+
+    embedding_function = OllamaEmbeddingFunction(
+        model="nomic-embed-text",
+        base_url="http://ollama.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    embeddings = embedding_function(["SQL dashboard", "Python analytics"])
+
+    assert [list(embedding) for embedding in embeddings] == [
+        [1.0, 0.0],
+        [0.0, 1.0],
+    ]
 
 
 def create_joined_roles_jsonl(path: Path) -> None:

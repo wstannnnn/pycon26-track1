@@ -47,13 +47,35 @@ classDiagram
         +str collection_name
         +str unique_skills_collection_name
         +str hnsw_space
+        +EmbeddingFunction embedding_function
         +upsert_points(points) dict
+        +embeddings_for_points(points, documents) list
         +search_text(text, limit, where, auto_index) VectorSearchHit[]
         +search_unique_skills_text(text, limit, where) VectorSearchHit[]
+        +search_collection_text(collection, text, limit, where) VectorSearchHit[]
         +find_role_records(role_query, limit, auto_index) VectorSearchHit[]
         +index_data_dir(data_dir) int
         +index_unique_skills(path) dict
         +list_collections() dict[]
+    }
+
+    class EmbeddingFunction {
+        <<interface>>
+        +__call__(documents) list
+    }
+
+    class OllamaEmbeddingFunction {
+        +str model
+        +str base_url
+        +float timeout
+        +__call__(documents) list
+        +get_config() dict
+    }
+
+    class LocalHashEmbeddingFunction {
+        +int dimensions
+        +__call__(documents) list
+        +get_config() dict
     }
 
     class LocalLlmClient {
@@ -76,6 +98,10 @@ classDiagram
         +unique_skills collection
     }
 
+    class OllamaEmbeddingServer {
+        +/api/embed
+    }
+
     class LocalLLMServer {
         +/v1/chat/completions
         +/api/generate
@@ -89,6 +115,10 @@ classDiagram
     LearnerAnalysisService --> VectorDbClient : retrieves evidence
     LearnerAnalysisService --> LocalLlmClient : generates recommendation
     VectorDbClient --> VectorSearchHit : creates
+    VectorDbClient --> EmbeddingFunction : embeds documents/query text
+    EmbeddingFunction <|.. OllamaEmbeddingFunction
+    EmbeddingFunction <|.. LocalHashEmbeddingFunction
+    OllamaEmbeddingFunction --> OllamaEmbeddingServer : HTTP JSON
     VectorDbClient --> ChromaDB : queries/indexes
     LocalLlmClient --> LocalLLMServer : HTTP JSON
 ```
@@ -102,6 +132,7 @@ sequenceDiagram
     participant Router as FastAPI Learner Router
     participant Service as Learner Analysis Service
     participant VectorDB as VectorDbClient / ChromaDB
+    participant Embedder as Ollama Embedding Server
     participant LLM as LocalLlmClient
     participant Model as Local LLM Server
 
@@ -112,12 +143,18 @@ sequenceDiagram
 
     Router->>Service: similarity_search(text, target_interest)
     Service->>VectorDB: find_role_records(target_interest, limit=3, auto_index=false)
+    VectorDB->>Embedder: POST /api/embed target role query
+    Embedder-->>VectorDB: query embedding
 
     alt Target role found
         VectorDB-->>Service: role matches
         Service->>VectorDB: search_text(text, where={role}, auto_index=false)
+        VectorDB->>Embedder: POST /api/embed learner profile query
+        Embedder-->>VectorDB: query embedding
         VectorDB-->>Service: supporting role evidence
         Service->>VectorDB: search_unique_skills_text(text, limit=5)
+        VectorDB->>Embedder: POST /api/embed learner profile query
+        Embedder-->>VectorDB: query embedding
         VectorDB-->>Service: unique skill evidence
         Service-->>Router: merged similarity matches
     else Target role missing
@@ -153,4 +190,6 @@ sequenceDiagram
 ## Scope
 
 - The class diagram shows implementation-level collaborators for the learner analysis use case.
-- The sequence diagram shows the primary `/learner/analyze` runtime flow, including target-role misses and local LLM fallback behavior.
+- The sequence diagram shows the primary `/learner/analyze` runtime flow, including embedding-backed retrieval, target-role misses, and local LLM fallback behavior.
+- The sequence starts from the dashboard user journey after login and ends with the dashboard outcome: recommended roles, priority skills, actions, explanation, and retrieved evidence.
+- The default runtime uses Ollama `nomic-embed-text` for ChromaDB document/query embeddings, while tests can use the deterministic local hash embedding function.

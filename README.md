@@ -12,6 +12,13 @@ This workspace contains the `pycon26` Job and Skills Track application. It is a 
 - Added stricter target interest validation and clearer `404` behavior when a target role is not indexed.
 - Added documentation for data provenance, bring-up steps, C4 architecture diagrams, UML diagrams, and Swagger/OpenAPI.
 - Generated a Swagger/OpenAPI spec for the backend endpoints.
+- Documented the UI/UX journey from login to dashboard analysis, the expected dashboard outcome, and the human collaboration behind system-design decisions.
+
+## Product Journey
+
+The main learner journey starts at the landing page, moves through login or registration, then opens the authenticated Pathway Hub dashboard. From there, the user can explore a current-to-target career pathway and analyze a learner profile using typed skills, resume/profile evidence, or the sample `functionalsample.pdf` workflow.
+
+The dashboard outcome is designed to show practical career-planning output: recommended next roles, priority skills, suggested learning actions, and similarity evidence from SkillsFuture job roles, role-skill records, key tasks, and unique skills. The system retrieves grounded evidence before asking the local LLM to generate the final recommendation.
 
 ## Folder Structure
 
@@ -47,9 +54,12 @@ pycon26-track1/
         ├── architecture-c4.md
         ├── bring-up.md
         ├── data-provenance.md
+        ├── interaction-logs.md
         ├── openapi.json
         ├── snapshots/
+        │   ├── capture-flow.mjs
         │   └── README.md
+        ├── videos/
         └── uml-diagrams.md
 ```
 
@@ -66,7 +76,7 @@ Project-owned Markdown docs:
 - [C4 architecture diagrams](pycon26/docs/architecture-c4.md): C1 system context and C2 container diagrams.
 - [UML diagrams](pycon26/docs/uml-diagrams.md): learner analysis class and sequence diagrams.
 - [Snapshot guide](pycon26/docs/snapshots/README.md): description of captured UI flow screenshots and regeneration command.
-- [Interaction logs](pycon26/docs/interaction-logs.md): AI-human collaboration trail and human contribution notes.
+- [Interaction logs](pycon26/docs/interaction-logs.md): AI-human collaboration trail, prompt-to-requirement workflow, UI/UX journey notes, dashboard outcome, and human system-design contribution notes.
 
 Other generated docs/artifacts:
 

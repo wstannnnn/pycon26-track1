@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     vector_db_unique_skills_collection: str = "unique_skills"
     vector_db_hnsw_space: str = "cosine"
     vector_db_auto_index: bool = True
+    vector_db_embedding_provider: str = "ollama"
+    vector_db_embedding_model: str = "nomic-embed-text"
+    vector_db_embedding_url: str = "http://localhost:11434"
+    vector_db_embedding_timeout: float = 60.0
     skills_data_dir: str = "../../data"
     local_llm_url: str = "http://localhost:8080"
     local_llm_model: str = "GLM-4.7-Flash-Q2_K.gguf"

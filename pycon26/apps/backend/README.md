@@ -50,6 +50,10 @@ VECTOR_DB_COLLECTION=job_skills
 VECTOR_DB_UNIQUE_SKILLS_COLLECTION=unique_skills
 VECTOR_DB_HNSW_SPACE=cosine
 VECTOR_DB_AUTO_INDEX=true
+VECTOR_DB_EMBEDDING_PROVIDER=ollama
+VECTOR_DB_EMBEDDING_MODEL=nomic-embed-text
+VECTOR_DB_EMBEDDING_URL=http://localhost:11434
+VECTOR_DB_EMBEDDING_TIMEOUT=60
 SKILLS_DATA_DIR=../../data
 ```
 
@@ -69,6 +73,17 @@ POST /vectors/index
 similarity. Existing collections keep their original HNSW metric, so rerun
 `/vectors/index` and `/vectors/index/unique-skills` after changing this setting.
 
+`VECTOR_DB_EMBEDDING_PROVIDER=ollama` sends ChromaDB documents and text queries to
+Ollama's local `/api/embed` endpoint. Pull the embedding model first:
+
+```sh
+ollama pull nomic-embed-text
+```
+
+Changing embedding providers or models changes vector dimensions, so rebuild both
+collections with `/vectors/index` and `/vectors/index/unique-skills` after changing
+the embedding settings.
+
 ## Learner Analysis Endpoint
 
 ```text
@@ -79,6 +94,10 @@ Accepts current role, target interest, skillset text, and resume text. The servi
 ChromaDB similarity search first, then uses the configured local LLM to generate the
 recommendation. If the local LLM is disabled, unavailable, or returns invalid JSON, the endpoint
 returns `502` instead of a mock recommendation.
+
+This endpoint powers the dashboard analysis outcome after login. The frontend displays the
+returned recommended roles, priority skills, suggested actions, explanation, LLM provider, and
+retrieved SkillsFuture similarity evidence.
 
 ```text
 LOCAL_LLM_URL=http://localhost:8080

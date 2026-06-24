@@ -2,6 +2,10 @@
 
 These screenshots capture the primary Job and Skills Track user flow.
 
+## Journey Captured
+
+The captured journey follows the UI/UX path discussed for the demo: landing page, login, authenticated dashboard, pathway exploration, and learner profile analysis. The final dashboard result is expected to show recommended roles, priority skills, suggested actions, and source-backed similarity evidence.
+
 ## Snapshot List
 
 - `01-landing.png`: landing page.

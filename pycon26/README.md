@@ -7,6 +7,20 @@ UML diagrams live in [`docs/uml-diagrams.md`](docs/uml-diagrams.md).
 Bring-up instructions live in [`docs/bring-up.md`](docs/bring-up.md).
 Swagger/OpenAPI spec lives in [`docs/openapi.json`](docs/openapi.json).
 Data provenance and retrieval notes live in [`docs/data-provenance.md`](docs/data-provenance.md).
+Collaboration and requirement traceability live in [`docs/interaction-logs.md`](docs/interaction-logs.md).
+
+## User Journey And Dashboard Outcome
+
+The primary user journey is:
+
+1. Open the landing page.
+2. Register or log in.
+3. Enter the authenticated Pathway Hub dashboard.
+4. Generate a current-to-target career pathway.
+5. Analyze a learner profile with skills, resume/profile evidence, or uploaded PDF content.
+6. Review recommended roles, priority skills, learning actions, and source-backed similarity evidence.
+
+The dashboard is designed around evidence-first career planning. SkillsFuture records are retrieved through ChromaDB before the local LLM generates recommendations, so users can see both the suggested next steps and the source evidence behind them.
 
 ## Apps
 
